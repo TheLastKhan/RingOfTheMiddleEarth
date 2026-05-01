@@ -264,6 +264,11 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 	isDarkSide := s.isPlayerDarkSide(playerID)
 
 	ctx := r.Context()
+	heartbeat := time.NewTicker(25 * time.Second)
+	defer heartbeat.Stop()
+
+	fmt.Fprintf(w, ": connected\n\n")
+	flusher.Flush()
 
 	// SSE forward loop
 	for {
@@ -271,6 +276,10 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 		case <-ctx.Done():
 			log.Printf("📡 SSE disconnected: %s", playerID)
 			return
+
+		case <-heartbeat.C:
+			fmt.Fprintf(w, ": heartbeat\n\n")
+			flusher.Flush()
 
 		case event := <-func() chan router.Event {
 			if isDarkSide {
