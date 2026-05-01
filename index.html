@@ -694,17 +694,28 @@ const NODE_FILL = {
   FREE_PEOPLES:'#4b7bec', SHADOW:'#eb3b5a', NEUTRAL:'#a5b1c2',
 };
 const PATH_COST = {
-  'bree-to-rivendell':2,
-  'shire-to-tharbad':2,
-  'rivendell-to-moria':2,
-  'rivendell-to-lothlorien':2,
-  'rohan-plains-to-minas-tirith':2,
-  'tharbad-to-fords-of-isen':2,
-  'edoras-to-minas-tirith':2,
-  'emyn-muil-to-ithilien':2,
-  'dead-marshes-to-mordor':2,
-  'ithilien-to-cirith-ungol':2,
-  'cirith-ungol-to-mount-doom':2,
+  'bree|rivendell':2,
+  'the-shire|tharbad':2,
+  'rivendell|moria':2,
+  'rivendell|lothlorien':2,
+  'rohan-plains|minas-tirith':2,
+  'tharbad|fords-of-isen':2,
+  'edoras|minas-tirith':2,
+  'emyn-muil|ithilien':2,
+  'dead-marshes|mordor':2,
+  'ithilien|cirith-ungol':2,
+  'cirith-ungol|mount-doom':2,
+};
+
+const LABEL_OFFSET = {
+  'the-shire': [0, -42], 'bree': [0, -42], 'tharbad': [0, 44],
+  'weathertop': [0, -42], 'rivendell': [0, -42], 'fangorn': [0, -42],
+  'fords-of-isen': [-76, 0], 'rohan-plains': [0, -42], 'moria': [0, 44],
+  'helms-deep': [0, 44], 'isengard': [0, 44], 'edoras': [0, 44],
+  'lothlorien': [0, -42], 'dead-marshes': [0, -42], 'emyn-muil': [0, 44],
+  'minas-tirith': [0, 44], 'ithilien': [58, -36], 'osgiliath': [0, 44],
+  'minas-morgul': [0, 44], 'cirith-ungol': [72, 26], 'mordor': [0, -42],
+  'mount-doom': [0, -42],
 };
 
 // ══════════════════════════════════════════════════════════
@@ -1137,12 +1148,6 @@ function renderMap() {
   ctx.fillStyle = '#f8f5eb';
   ctx.fillRect(0, 0, W, H);
 
-  // Subtle grid
-  ctx.strokeStyle = 'rgba(44,62,80,0.04)';
-  ctx.lineWidth = 1;
-  for (let x=0; x<W; x+=40) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
-  for (let y=0; y<H; y+=40) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
-
   // Paths
   PATHS_DATA.forEach(([a, b]) => {
     const posA = REGION_POS[a], posB = REGION_POS[b];
@@ -1155,7 +1160,7 @@ function renderMap() {
     const pathId = findPathId(a, b);
     const pathState = pathId ? State.paths[pathId] : null;
 
-    const cost = pathId ? (PATH_COST[pathId] || 1) : 1;
+    const cost = pathCost(a, b);
     let lineColor = cost === 2 ? '#555' : '#888';
     let lineWidth = cost === 2 ? 4 : 3;
     ctx.setLineDash(cost === 2 ? [8, 8] : []);
@@ -1218,11 +1223,7 @@ function renderMap() {
       ctx.setLineDash([]);
     }
 
-    // Region name
-    ctx.fillStyle = '#2c3e50';
-    ctx.font      = '13px Cinzel, serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(formatRegionName(id), x, y + radius + 10);
+    drawRegionLabel(ctx, formatRegionName(id), x, y, id);
 
     // Units in region
     const unitsHere = State.units.filter(u =>
@@ -1258,6 +1259,8 @@ function renderMap() {
       }
     }
   }
+
+  drawMapLegend(ctx, W, H);
 }
 
 function findPathId(a, b) {
@@ -1267,6 +1270,138 @@ function findPathId(a, b) {
         (id.includes(b) && id.includes(a))) return id;
   }
   return null;
+}
+
+function pathCost(a, b) {
+  return PATH_COST[`${a}|${b}`] || PATH_COST[`${b}|${a}`] || 1;
+}
+
+function roundedRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function drawRegionLabel(ctx, text, x, y, id) {
+  const [dx, dy] = LABEL_OFFSET[id] || [0, 34];
+  ctx.font = 'bold 13px Segoe UI, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const width = Math.max(54, ctx.measureText(text).width + 18);
+  const height = 26;
+  const lx = x + dx;
+  const ly = y + dy;
+
+  roundedRect(ctx, lx - width/2, ly - height/2, width, height, 6);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+  ctx.strokeStyle = '#dcdde1';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.fillStyle = '#2c3e50';
+  ctx.fillText(text, lx, ly + 1);
+}
+
+function drawMapLegend(ctx, W, H) {
+  const boxW = Math.min(220, W * 0.22);
+  const boxH = 122;
+  const gap = 24;
+  const totalW = boxW * 3 + gap * 2;
+  const startX = Math.max(18, (W - totalW) / 2);
+  const y = Math.min(H * 0.82, H - boxH - 18);
+
+  drawLegendBox(ctx, startX, y, boxW, boxH, 'Start Control');
+  drawLegendDot(ctx, startX + 26, y + 52, NODE_FILL.FREE_PEOPLES, 'Free Peoples');
+  drawLegendDot(ctx, startX + 26, y + 78, NODE_FILL.SHADOW, 'Shadow');
+  drawLegendDot(ctx, startX + 26, y + 104, NODE_FILL.NEUTRAL, 'Neutral');
+
+  const pathX = startX + boxW + gap;
+  drawLegendBox(ctx, pathX, y, boxW, boxH, 'Path Costs');
+  drawLegendLine(ctx, pathX + 24, y + 62, false, 'Cost 1 (Solid Line)');
+  drawLegendLine(ctx, pathX + 24, y + 96, true, 'Cost 2 (Dashed Line)');
+
+  const terrainX = pathX + boxW + gap;
+  drawLegendBox(ctx, terrainX, y, boxW, boxH, 'Terrain Icons');
+  const terrainItems = [['Plains', 52], ['Swamp', 52], ['Mountains', 78], ['Forest', 78], ['Fortress', 104], ['Volcanic', 104]];
+  terrainItems.forEach(([label, rowY], idx) => {
+    const colX = terrainX + (idx % 2 === 0 ? 24 : boxW / 2 + 12);
+    drawTerrainIcon(ctx, colX, y + rowY, label);
+  });
+}
+
+function drawLegendBox(ctx, x, y, w, h, title) {
+  roundedRect(ctx, x, y, w, h, 8);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+  ctx.strokeStyle = '#dcdde1';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.font = 'bold 15px Segoe UI, sans-serif';
+  ctx.fillStyle = '#2c3e50';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(title, x + 14, y + 26);
+}
+
+function drawLegendDot(ctx, x, y, color, label) {
+  ctx.beginPath();
+  ctx.arc(x, y, 8, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.font = '14px Segoe UI, sans-serif';
+  ctx.fillStyle = '#576574';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, x + 20, y + 1);
+}
+
+function drawLegendLine(ctx, x, y, dashed, label) {
+  ctx.beginPath();
+  ctx.setLineDash(dashed ? [8, 8] : []);
+  ctx.moveTo(x, y);
+  ctx.lineTo(x + 42, y);
+  ctx.strokeStyle = dashed ? '#555' : '#888';
+  ctx.lineWidth = dashed ? 4 : 3;
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.font = '14px Segoe UI, sans-serif';
+  ctx.fillStyle = '#576574';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, x + 54, y + 1);
+}
+
+function drawTerrainIcon(ctx, x, y, label) {
+  ctx.beginPath();
+  ctx.arc(x, y, 10, 0, Math.PI * 2);
+  ctx.fillStyle = '#7f8fa6';
+  ctx.fill();
+
+  ctx.font = '12px Segoe UI, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label[0], x, y);
+
+  ctx.font = '13px Segoe UI, sans-serif';
+  ctx.fillStyle = '#576574';
+  ctx.textAlign = 'left';
+  ctx.fillText(label, x + 16, y + 1);
 }
 
 function formatRegionName(id) {
