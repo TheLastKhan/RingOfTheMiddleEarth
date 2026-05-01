@@ -1294,7 +1294,7 @@ function renderMap() {
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth   = 3;
     ctx.stroke();
-    drawTerrainIconOnNode(ctx, x - 6, y - 5, REGION_TERRAIN[id]);
+    drawTerrainBadge(ctx, x + radius - 2, y - radius + 2, REGION_TERRAIN[id]);
 
     // Fortification indicator
     if (regionState?.fortified) {
@@ -1395,12 +1395,20 @@ function drawRegionLabel(ctx, text, x, y, id) {
   ctx.fillText(text, lx, ly + 1);
 }
 
-function drawTerrainIconOnNode(ctx, x, y, terrain) {
+function drawTerrainBadge(ctx, x, y, terrain) {
   ctx.save();
-  ctx.globalAlpha = 0.86;
+  ctx.beginPath();
+  ctx.arc(x, y, 12, 0, Math.PI * 2);
+  ctx.fillStyle = '#7f8fa6';
+  ctx.fill();
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.globalAlpha = 0.95;
   ctx.strokeStyle = '#ffffff';
   ctx.fillStyle = '#ffffff';
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 1.8;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
