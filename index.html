@@ -1594,12 +1594,7 @@ function drawTerrainIcon(ctx, x, y, label) {
   ctx.arc(x, y, 10, 0, Math.PI * 2);
   ctx.fillStyle = '#7f8fa6';
   ctx.fill();
-
-  ctx.font = '12px Segoe UI, sans-serif';
-  ctx.fillStyle = '#ffffff';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(label[0], x, y);
+  drawTerrainIconOnNode(ctx, x, y, label.toUpperCase());
 
   ctx.font = '13px Segoe UI, sans-serif';
   ctx.fillStyle = '#576574';
