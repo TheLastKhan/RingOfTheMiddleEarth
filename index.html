@@ -9,11 +9,13 @@
 
   :root {
     --gold:     #c9a84c;
-    --gold-dim: #7a6330;
+    --gold-dim: #b49447;
     --dark:     #0d0b07;
     --dark2:    #161208;
     --dark3:    #1e1810;
-    --parchment:#e8dfc8;
+    --parchment:#f1e8d2;
+    --muted:    #d0c3aa;
+    --muted2:   #b8aa90;
     --red:      #8b1a1a;
     --blue:     #1a3a5c;
     --green:    #1a3a1a;
@@ -29,6 +31,8 @@
     color: var(--parchment);
     font-family: 'IM Fell English', serif;
     font-size: 17px;
+    font-weight: 500;
+    line-height: 1.45;
     min-height: 100vh;
     overflow-x: hidden;
     background-image:
@@ -62,8 +66,9 @@
     text-shadow: 0 0 30px rgba(201,168,76,0.4);
   }
   .subtitle {
-    font-size: 0.75rem;
+    font-size: 0.82rem;
     color: var(--gold-dim);
+    font-weight: 700;
     letter-spacing: 0.3em;
     text-transform: uppercase;
     margin-top: 0.2rem;
@@ -104,8 +109,9 @@
   .form-group { margin-bottom: 1.2rem; }
   label {
     display: block;
-    font-size: 0.7rem;
-    letter-spacing: 0.2em;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
     color: var(--gold-dim);
     margin-bottom: 0.4rem;
@@ -117,7 +123,8 @@
     color: var(--parchment);
     padding: 0.6rem 0.8rem;
     font-family: 'IM Fell English', serif;
-    font-size: 0.95rem;
+    font-size: 1.05rem;
+    font-weight: 600;
     outline: none;
     transition: border-color 0.2s;
   }
@@ -133,7 +140,8 @@
     background: transparent;
     color: var(--parchment);
     font-family: 'Cinzel', serif;
-    font-size: 0.75rem;
+    font-size: 0.9rem;
+    font-weight: 700;
     letter-spacing: 0.1em;
     cursor: pointer;
     transition: all 0.2s;
@@ -158,7 +166,8 @@
     border: 1px solid var(--gold);
     color: var(--gold);
     font-family: 'Cinzel', serif;
-    font-size: 0.8rem;
+    font-size: 0.92rem;
+    font-weight: 700;
     letter-spacing: 0.2em;
     text-transform: uppercase;
     cursor: pointer;
@@ -193,18 +202,21 @@
     background: var(--dark2);
     border-bottom: 1px solid var(--gold-dim);
     font-size: 0.95rem;
+    font-weight: 700;
     letter-spacing: 0.1em;
   }
   .turn-display {
     font-family: 'Cinzel', serif;
     color: var(--gold);
     font-size: 1.15rem;
+    font-weight: 700;
   }
   .player-badge {
     padding: 0.3rem 0.8rem;
     border: 1px solid;
     font-family: 'Cinzel', serif;
     font-size: 0.85rem;
+    font-weight: 700;
     letter-spacing: 0.15em;
   }
   .player-badge.light { border-color: var(--light-side); color: var(--light-side); }
@@ -229,7 +241,8 @@
     font-size: 0.82rem;
     letter-spacing: 0.18em;
     text-transform: uppercase;
-    color: var(--gold-dim);
+    color: var(--gold);
+    font-weight: 700;
     border-bottom: 1px solid rgba(201,168,76,0.2);
     padding-bottom: 0.5rem;
     margin-bottom: 0.8rem;
@@ -252,17 +265,19 @@
   .unit-name {
     font-family: 'Cinzel', serif;
     font-size: 0.9rem;
+    font-weight: 700;
     color: var(--gold);
     margin-bottom: 0.25rem;
   }
   .unit-meta {
     font-size: 0.8rem;
-    color: #888;
+    color: var(--muted);
+    font-weight: 600;
     display: flex;
     gap: 0.6rem;
     flex-wrap: wrap;
   }
-  .unit-meta span { color: #aaa; }
+  .unit-meta span { color: var(--parchment); }
   .strength-bar {
     height: 3px;
     background: rgba(255,255,255,0.1);
@@ -277,7 +292,8 @@
   }
   .unit-region {
     font-size: 0.78rem;
-    color: #666;
+    color: var(--muted2);
+    font-weight: 600;
     margin-top: 0.2rem;
     font-style: italic;
   }
@@ -328,9 +344,10 @@
     padding: 0.5rem;
     background: transparent;
     border: 1px solid rgba(201,168,76,0.3);
-    color: #aaa;
+    color: var(--muted);
     font-family: 'IM Fell English', serif;
     font-size: 0.82rem;
+    font-weight: 700;
     cursor: pointer;
     transition: all 0.15s;
     text-align: center;
@@ -354,7 +371,9 @@
     margin-top: 0.5rem;
     min-height: 60px;
     font-size: 0.85rem;
-    color: #888;
+    color: var(--muted);
+    font-weight: 600;
+    line-height: 1.45;
     font-style: italic;
   }
 
@@ -367,6 +386,7 @@
     color: var(--gold);
     font-family: 'Cinzel', serif;
     font-size: 0.85rem;
+    font-weight: 700;
     letter-spacing: 0.2em;
     cursor: pointer;
     transition: all 0.2s;
@@ -385,14 +405,16 @@
     padding: 0.35rem 0;
     border-bottom: 1px solid rgba(255,255,255,0.04);
     line-height: 1.4;
-    color: #888;
+    color: var(--muted);
+    font-weight: 600;
     animation: fadeIn 0.3s ease;
   }
   .event-entry:first-child { color: var(--parchment); }
   .event-entry .ev-type {
-    color: var(--gold-dim);
+    color: var(--gold);
     font-family: 'Cinzel', serif;
     font-size: 0.72rem;
+    font-weight: 700;
     letter-spacing: 0.1em;
     display: block;
     margin-bottom: 0.1rem;
@@ -416,14 +438,16 @@
     background: var(--dark2);
     border-top: 1px solid var(--gold-dim);
     font-size: 0.86rem;
+    font-weight: 600;
   }
   .analysis-btn {
     padding: 0.4rem 0.8rem;
     background: transparent;
     border: 1px solid var(--gold-dim);
-    color: var(--gold-dim);
+    color: var(--gold);
     font-family: 'Cinzel', serif;
     font-size: 0.78rem;
+    font-weight: 700;
     letter-spacing: 0.1em;
     cursor: pointer;
     transition: all 0.2s;
@@ -434,8 +458,9 @@
   }
   .risk-display {
     font-family: 'Cinzel', serif;
-    color: var(--gold-dim);
+    color: var(--gold);
     font-size: 0.82rem;
+    font-weight: 700;
   }
 
   /* ── GAME OVER OVERLAY ──────────────────────────────── */
@@ -492,10 +517,27 @@
   .order-detail input,
   .order-detail select {
     font-size: 0.9rem !important;
+    font-weight: 700 !important;
+  }
+
+  #selected-unit-name {
+    color: var(--muted) !important;
+  }
+
+  .order-detail label {
+    color: var(--gold) !important;
+    letter-spacing: 0.12em !important;
+  }
+
+  .order-detail input,
+  .order-detail select {
+    color: var(--parchment) !important;
+    padding: 6px 8px !important;
   }
 
   .side-btn small {
-    font-size: 0.78rem;
+    font-size: 0.84rem;
+    font-weight: 600;
     line-height: 1.3;
   }
 
