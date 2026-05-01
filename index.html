@@ -1294,7 +1294,7 @@ function renderMap() {
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth   = 3;
     ctx.stroke();
-    drawTerrainBadge(ctx, x + radius - 2, y - radius + 2, REGION_TERRAIN[id]);
+    drawTerrainIconOnNode(ctx, x, y, REGION_TERRAIN[id]);
 
     // Fortification indicator
     if (regionState?.fortified) {
@@ -1314,9 +1314,7 @@ function renderMap() {
       (u.currentRegion || u.region) === id
     );
     if (unitsHere.length > 0) {
-      ctx.fillStyle = '#fff';
-      ctx.font      = '14px sans-serif';
-      ctx.fillText(`(${unitsHere.length})`, x, y + 4);
+      drawUnitCountBadge(ctx, x + radius - 1, y + radius - 1, unitsHere.length);
     }
   });
 
@@ -1327,19 +1325,17 @@ function renderMap() {
       const pos = REGION_POS[rb.currentRegion];
       if (pos) {
         const x = pos[0]/100*W, y = pos[1]/100*H;
-        // Glowing ring
-        const gradient = ctx.createRadialGradient(x, y, 0, x, y, 22);
+        // Glowing ring badge
+        const bx = x - 17, by = y - 17;
+        const gradient = ctx.createRadialGradient(bx, by, 0, bx, by, 18);
         gradient.addColorStop(0, 'rgba(201,168,76,0.4)');
         gradient.addColorStop(1, 'rgba(201,168,76,0)');
         ctx.beginPath();
-        ctx.arc(x, y, 22, 0, Math.PI*2);
+        ctx.arc(bx, by, 18, 0, Math.PI*2);
         ctx.fillStyle = gradient;
         ctx.fill();
 
-        ctx.fillStyle = '#c9a84c';
-        ctx.font      = '20px serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('💍', x, y + 5);
+        drawRingBadge(ctx, bx, by);
       }
     }
   }
@@ -1395,20 +1391,12 @@ function drawRegionLabel(ctx, text, x, y, id) {
   ctx.fillText(text, lx, ly + 1);
 }
 
-function drawTerrainBadge(ctx, x, y, terrain) {
+function drawTerrainIconOnNode(ctx, x, y, terrain) {
   ctx.save();
-  ctx.beginPath();
-  ctx.arc(x, y, 12, 0, Math.PI * 2);
-  ctx.fillStyle = '#7f8fa6';
-  ctx.fill();
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-
-  ctx.globalAlpha = 0.95;
+  ctx.globalAlpha = 0.9;
   ctx.strokeStyle = '#ffffff';
   ctx.fillStyle = '#ffffff';
-  ctx.lineWidth = 1.8;
+  ctx.lineWidth = 2;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
@@ -1487,6 +1475,42 @@ function drawTerrainBadge(ctx, x, y, terrain) {
       break;
   }
 
+  ctx.restore();
+}
+
+function drawUnitCountBadge(ctx, x, y, count) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x, y, 12, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+  ctx.strokeStyle = '#2c3e50';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.fillStyle = '#2c3e50';
+  ctx.font = 'bold 12px Segoe UI, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(String(count), x, y);
+  ctx.restore();
+}
+
+function drawRingBadge(ctx, x, y) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x, y, 12, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+  ctx.strokeStyle = '#c9a84c';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.fillStyle = '#c9a84c';
+  ctx.font = '16px serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('💍', x, y + 1);
   ctx.restore();
 }
 
