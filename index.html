@@ -766,6 +766,16 @@ const PATHS_DATA = [
 const NODE_FILL = {
   FREE_PEOPLES:'#4b7bec', SHADOW:'#eb3b5a', NEUTRAL:'#a5b1c2',
 };
+const REGION_TERRAIN = {
+  'the-shire':'PLAINS', 'bree':'PLAINS', 'tharbad':'SWAMP',
+  'weathertop':'MOUNTAINS', 'rivendell':'MOUNTAINS', 'fangorn':'FOREST',
+  'fords-of-isen':'PLAINS', 'rohan-plains':'PLAINS', 'moria':'MOUNTAINS',
+  'helms-deep':'FORTRESS', 'isengard':'FORTRESS', 'edoras':'PLAINS',
+  'lothlorien':'FOREST', 'dead-marshes':'SWAMP', 'emyn-muil':'MOUNTAINS',
+  'minas-tirith':'FORTRESS', 'ithilien':'FOREST', 'osgiliath':'PLAINS',
+  'minas-morgul':'FORTRESS', 'cirith-ungol':'MOUNTAINS', 'mordor':'VOLCANIC',
+  'mount-doom':'VOLCANIC',
+};
 const PATH_COST = {
   'bree|rivendell':2,
   'the-shire|tharbad':2,
@@ -1284,6 +1294,7 @@ function renderMap() {
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth   = 3;
     ctx.stroke();
+    drawTerrainIconOnNode(ctx, x - 6, y - 5, REGION_TERRAIN[id]);
 
     // Fortification indicator
     if (regionState?.fortified) {
@@ -1382,6 +1393,93 @@ function drawRegionLabel(ctx, text, x, y, id) {
 
   ctx.fillStyle = '#2c3e50';
   ctx.fillText(text, lx, ly + 1);
+}
+
+function drawTerrainIconOnNode(ctx, x, y, terrain) {
+  ctx.save();
+  ctx.globalAlpha = 0.86;
+  ctx.strokeStyle = '#ffffff';
+  ctx.fillStyle = '#ffffff';
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  switch (terrain) {
+    case 'SWAMP':
+      ctx.beginPath();
+      ctx.moveTo(x - 8, y - 2);
+      ctx.quadraticCurveTo(x - 4, y - 5, x, y - 2);
+      ctx.quadraticCurveTo(x + 4, y + 1, x + 8, y - 2);
+      ctx.moveTo(x - 7, y + 4);
+      ctx.quadraticCurveTo(x - 3, y + 1, x + 1, y + 4);
+      ctx.quadraticCurveTo(x + 5, y + 7, x + 8, y + 4);
+      ctx.stroke();
+      break;
+    case 'MOUNTAINS':
+      ctx.beginPath();
+      ctx.moveTo(x - 9, y + 6);
+      ctx.lineTo(x - 3, y - 7);
+      ctx.lineTo(x + 2, y + 2);
+      ctx.moveTo(x - 2, y + 6);
+      ctx.lineTo(x + 5, y - 8);
+      ctx.lineTo(x + 10, y + 6);
+      ctx.stroke();
+      break;
+    case 'FOREST':
+      ctx.beginPath();
+      ctx.moveTo(x, y - 9);
+      ctx.lineTo(x - 7, y + 3);
+      ctx.lineTo(x - 3, y + 3);
+      ctx.lineTo(x - 8, y + 9);
+      ctx.lineTo(x + 8, y + 9);
+      ctx.lineTo(x + 3, y + 3);
+      ctx.lineTo(x + 7, y + 3);
+      ctx.closePath();
+      ctx.fill();
+      break;
+    case 'FORTRESS':
+      ctx.beginPath();
+      ctx.moveTo(x - 8, y - 6);
+      ctx.lineTo(x - 8, y + 8);
+      ctx.lineTo(x + 8, y + 8);
+      ctx.lineTo(x + 8, y - 6);
+      ctx.lineTo(x + 4, y - 6);
+      ctx.lineTo(x + 4, y - 2);
+      ctx.lineTo(x - 4, y - 2);
+      ctx.lineTo(x - 4, y - 6);
+      ctx.closePath();
+      ctx.fill();
+      break;
+    case 'VOLCANIC':
+      ctx.beginPath();
+      ctx.moveTo(x - 9, y + 8);
+      ctx.lineTo(x - 3, y - 3);
+      ctx.lineTo(x + 3, y - 3);
+      ctx.lineTo(x + 9, y + 8);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x - 2, y - 7);
+      ctx.quadraticCurveTo(x, y - 12, x + 2, y - 7);
+      ctx.strokeStyle = '#ffdd59';
+      ctx.stroke();
+      break;
+    case 'PLAINS':
+    default:
+      ctx.beginPath();
+      ctx.moveTo(x - 8, y + 5);
+      ctx.lineTo(x + 8, y + 5);
+      ctx.moveTo(x - 5, y + 5);
+      ctx.lineTo(x - 7, y - 2);
+      ctx.moveTo(x, y + 5);
+      ctx.lineTo(x, y - 5);
+      ctx.moveTo(x + 5, y + 5);
+      ctx.lineTo(x + 7, y - 2);
+      ctx.stroke();
+      break;
+  }
+
+  ctx.restore();
 }
 
 function drawMapLegend(ctx, W, H) {
