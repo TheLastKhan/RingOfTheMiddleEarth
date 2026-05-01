@@ -1,0 +1,44 @@
+{
+  "type": "record",
+  "name": "WorldStateSnapshot",
+  "namespace": "rotr.avro",
+  "fields": [
+    {"name": "turn", "type": "int"},
+    {
+      "name": "regions",
+      "type": {
+        "type": "array",
+        "items": {
+          "type": "record",
+          "name": "RegionSnapshot",
+          "fields": [
+            {"name": "id",           "type": "string"},
+            {"name": "controller",   "type": "string"},
+            {"name": "threatLevel",  "type": "int"},
+            {"name": "fortified",    "type": "boolean"},
+            {"name": "fortifyTurns", "type": "int"}
+          ]
+        }
+      }
+    },
+    {
+      "name": "units",
+      "type": {
+        "type": "array",
+        "items": {
+          "type": "record",
+          "name": "UnitSnapshot",
+          "fields": [
+            {"name": "id",            "type": "string"},
+            {"name": "currentRegion", "type": "string"},
+            {"name": "strength",      "type": "int"},
+            {"name": "status",        "type": "string"},
+            {"name": "respawnTurns",  "type": "int"},
+            {"name": "cooldown",      "type": "int"}
+          ]
+        }
+      }
+    },
+    {"name": "timestamp", "type": "long"}
+  ]
+}

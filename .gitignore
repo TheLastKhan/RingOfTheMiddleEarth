@@ -1,0 +1,10 @@
+.metals/
+.vscode/
+
+*.class
+target/
+
+*.log
+.DS_Store
+Thumbs.db
+_pdfprobe.cs

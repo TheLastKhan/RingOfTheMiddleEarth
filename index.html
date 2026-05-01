@@ -1,0 +1,1362 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ring of the Middle Earth</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700&family=Cinzel:wght@400;600&family=IM+Fell+English:ital@0;1&display=swap');
+
+  :root {
+    --gold:     #c9a84c;
+    --gold-dim: #7a6330;
+    --dark:     #0d0b07;
+    --dark2:    #161208;
+    --dark3:    #1e1810;
+    --parchment:#e8dfc8;
+    --red:      #8b1a1a;
+    --blue:     #1a3a5c;
+    --green:    #1a3a1a;
+    --shadow:   rgba(0,0,0,0.8);
+    --light-side: #4a90d9;
+    --dark-side:  #c0392b;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--dark);
+    color: var(--parchment);
+    font-family: 'IM Fell English', serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+    background-image:
+      radial-gradient(ellipse at 20% 50%, rgba(201,168,76,0.04) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 20%, rgba(139,26,26,0.06) 0%, transparent 60%);
+  }
+
+  /* ── HEADER ─────────────────────────────────────────── */
+  header {
+    text-align: center;
+    padding: 1.2rem 1rem 0.8rem;
+    border-bottom: 1px solid var(--gold-dim);
+    background: linear-gradient(180deg, rgba(201,168,76,0.08) 0%, transparent 100%);
+    position: relative;
+  }
+  header::before {
+    content: '⬥';
+    position: absolute; left: 1rem; top: 50%; transform: translateY(-50%);
+    color: var(--gold-dim); font-size: 1.2rem;
+  }
+  header::after {
+    content: '⬥';
+    position: absolute; right: 1rem; top: 50%; transform: translateY(-50%);
+    color: var(--gold-dim); font-size: 1.2rem;
+  }
+  h1 {
+    font-family: 'Cinzel Decorative', cursive;
+    font-size: clamp(1rem, 3vw, 1.8rem);
+    color: var(--gold);
+    letter-spacing: 0.15em;
+    text-shadow: 0 0 30px rgba(201,168,76,0.4);
+  }
+  .subtitle {
+    font-size: 0.75rem;
+    color: var(--gold-dim);
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    margin-top: 0.2rem;
+  }
+
+  /* ── LOGIN ──────────────────────────────────────────── */
+  #login-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 80vh;
+    gap: 2rem;
+    padding: 2rem;
+  }
+  .login-box {
+    background: var(--dark2);
+    border: 1px solid var(--gold-dim);
+    padding: 2.5rem;
+    max-width: 420px;
+    width: 100%;
+    position: relative;
+  }
+  .login-box::before {
+    content: '';
+    position: absolute; inset: 4px;
+    border: 1px solid rgba(201,168,76,0.15);
+    pointer-events: none;
+  }
+  .login-box h2 {
+    font-family: 'Cinzel', serif;
+    color: var(--gold);
+    font-size: 1rem;
+    letter-spacing: 0.2em;
+    text-align: center;
+    margin-bottom: 1.5rem;
+  }
+  .form-group { margin-bottom: 1.2rem; }
+  label {
+    display: block;
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gold-dim);
+    margin-bottom: 0.4rem;
+  }
+  input[type=text] {
+    width: 100%;
+    background: var(--dark3);
+    border: 1px solid var(--gold-dim);
+    color: var(--parchment);
+    padding: 0.6rem 0.8rem;
+    font-family: 'IM Fell English', serif;
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  input[type=text]:focus { border-color: var(--gold); }
+
+  .side-select {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem;
+    margin-bottom: 1.2rem;
+  }
+  .side-btn {
+    padding: 0.8rem;
+    border: 1px solid var(--gold-dim);
+    background: transparent;
+    color: var(--parchment);
+    font-family: 'Cinzel', serif;
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+  }
+  .side-btn:hover { border-color: var(--gold); color: var(--gold); }
+  .side-btn.active-light {
+    background: rgba(74,144,217,0.2);
+    border-color: var(--light-side);
+    color: var(--light-side);
+  }
+  .side-btn.active-dark {
+    background: rgba(192,57,43,0.2);
+    border-color: var(--dark-side);
+    color: var(--dark-side);
+  }
+
+  .btn {
+    width: 100%;
+    padding: 0.8rem;
+    background: transparent;
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    font-family: 'Cinzel', serif;
+    font-size: 0.8rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .btn:hover {
+    background: rgba(201,168,76,0.15);
+    box-shadow: 0 0 20px rgba(201,168,76,0.2);
+  }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ── MAIN GAME LAYOUT ───────────────────────────────── */
+  #game-screen { display: none; }
+
+  .game-layout {
+    display: grid;
+    grid-template-columns: 260px 1fr 260px;
+    grid-template-rows: auto 1fr auto;
+    gap: 0;
+    min-height: calc(100vh - 90px);
+  }
+
+  /* ── STATUS BAR ─────────────────────────────────────── */
+  .status-bar {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.6rem 1.2rem;
+    background: var(--dark2);
+    border-bottom: 1px solid var(--gold-dim);
+    font-size: 0.78rem;
+    letter-spacing: 0.1em;
+  }
+  .turn-display {
+    font-family: 'Cinzel', serif;
+    color: var(--gold);
+    font-size: 1rem;
+  }
+  .player-badge {
+    padding: 0.3rem 0.8rem;
+    border: 1px solid;
+    font-family: 'Cinzel', serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+  }
+  .player-badge.light { border-color: var(--light-side); color: var(--light-side); }
+  .player-badge.dark  { border-color: var(--dark-side);  color: var(--dark-side); }
+  .connection-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #666; display: inline-block; margin-right: 6px;
+    transition: background 0.3s;
+  }
+  .connection-dot.connected { background: #4caf50; box-shadow: 0 0 6px #4caf50; }
+
+  /* ── LEFT PANEL — Units ─────────────────────────────── */
+  .panel-left {
+    background: var(--dark2);
+    border-right: 1px solid rgba(201,168,76,0.2);
+    padding: 0.8rem;
+    overflow-y: auto;
+    max-height: calc(100vh - 160px);
+  }
+  .panel-title {
+    font-family: 'Cinzel', serif;
+    font-size: 0.65rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--gold-dim);
+    border-bottom: 1px solid rgba(201,168,76,0.2);
+    padding-bottom: 0.5rem;
+    margin-bottom: 0.8rem;
+  }
+
+  .unit-card {
+    background: var(--dark3);
+    border: 1px solid rgba(201,168,76,0.15);
+    padding: 0.6rem 0.7rem;
+    margin-bottom: 0.5rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    position: relative;
+  }
+  .unit-card:hover { border-color: var(--gold-dim); }
+  .unit-card.selected { border-color: var(--gold); background: rgba(201,168,76,0.08); }
+  .unit-card.destroyed { opacity: 0.4; }
+  .unit-card.respawning { opacity: 0.6; }
+
+  .unit-name {
+    font-family: 'Cinzel', serif;
+    font-size: 0.72rem;
+    color: var(--gold);
+    margin-bottom: 0.25rem;
+  }
+  .unit-meta {
+    font-size: 0.65rem;
+    color: #888;
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+  }
+  .unit-meta span { color: #aaa; }
+  .strength-bar {
+    height: 3px;
+    background: rgba(255,255,255,0.1);
+    margin-top: 0.4rem;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .strength-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold-dim), var(--gold));
+    transition: width 0.5s;
+  }
+  .unit-region {
+    font-size: 0.6rem;
+    color: #666;
+    margin-top: 0.2rem;
+    font-style: italic;
+  }
+  .status-badge {
+    position: absolute;
+    top: 0.4rem; right: 0.5rem;
+    font-size: 0.55rem;
+    letter-spacing: 0.1em;
+    padding: 0.1rem 0.3rem;
+    border: 1px solid;
+  }
+  .status-badge.active   { border-color: #4caf50; color: #4caf50; }
+  .status-badge.destroyed{ border-color: var(--red); color: var(--red); }
+  .status-badge.respawning{ border-color: #ff9800; color: #ff9800; }
+
+  /* ── CENTER — Map ───────────────────────────────────── */
+  .panel-center {
+    position: relative;
+    overflow: hidden;
+    background: var(--dark);
+  }
+  #map-canvas {
+    width: 100%;
+    height: 100%;
+    min-height: 500px;
+  }
+
+  /* ── RIGHT PANEL — Orders + Events ─────────────────── */
+  .panel-right {
+    background: var(--dark2);
+    border-left: 1px solid rgba(201,168,76,0.2);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .order-panel {
+    padding: 0.8rem;
+    border-bottom: 1px solid rgba(201,168,76,0.2);
+  }
+  .order-type-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4rem;
+    margin: 0.6rem 0;
+  }
+  .order-btn {
+    padding: 0.5rem;
+    background: transparent;
+    border: 1px solid rgba(201,168,76,0.3);
+    color: #aaa;
+    font-family: 'IM Fell English', serif;
+    font-size: 0.65rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+  }
+  .order-btn:hover:not(:disabled) {
+    border-color: var(--gold);
+    color: var(--gold);
+    background: rgba(201,168,76,0.08);
+  }
+  .order-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .order-btn.active {
+    border-color: var(--gold);
+    background: rgba(201,168,76,0.15);
+    color: var(--gold);
+  }
+
+  .order-detail {
+    background: var(--dark3);
+    border: 1px solid rgba(201,168,76,0.15);
+    padding: 0.6rem;
+    margin-top: 0.5rem;
+    min-height: 60px;
+    font-size: 0.7rem;
+    color: #888;
+    font-style: italic;
+  }
+
+  .submit-btn {
+    width: 100%;
+    margin-top: 0.5rem;
+    padding: 0.6rem;
+    background: rgba(201,168,76,0.1);
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    font-family: 'Cinzel', serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .submit-btn:hover { background: rgba(201,168,76,0.2); }
+  .submit-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  /* ── Event Log ──────────────────────────────────────── */
+  .event-log {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.8rem;
+  }
+  .event-entry {
+    font-size: 0.65rem;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    line-height: 1.4;
+    color: #888;
+    animation: fadeIn 0.3s ease;
+  }
+  .event-entry:first-child { color: var(--parchment); }
+  .event-entry .ev-type {
+    color: var(--gold-dim);
+    font-family: 'Cinzel', serif;
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    display: block;
+    margin-bottom: 0.1rem;
+  }
+  .event-entry.detection { color: var(--dark-side) !important; }
+  .event-entry.detection .ev-type { color: var(--dark-side); }
+  .event-entry.movement { color: #7ab8e8; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateX(8px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  /* ── BOTTOM BAR ─────────────────────────────────────── */
+  .bottom-bar {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.5rem 1rem;
+    background: var(--dark2);
+    border-top: 1px solid var(--gold-dim);
+    font-size: 0.7rem;
+  }
+  .analysis-btn {
+    padding: 0.4rem 0.8rem;
+    background: transparent;
+    border: 1px solid var(--gold-dim);
+    color: var(--gold-dim);
+    font-family: 'Cinzel', serif;
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .analysis-btn:hover {
+    border-color: var(--gold);
+    color: var(--gold);
+  }
+  .risk-display {
+    font-family: 'Cinzel', serif;
+    color: var(--gold-dim);
+    font-size: 0.65rem;
+  }
+
+  /* ── GAME OVER OVERLAY ──────────────────────────────── */
+  #gameover-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.92);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 2rem;
+  }
+  #gameover-overlay.show { display: flex; }
+  .gameover-title {
+    font-family: 'Cinzel Decorative', cursive;
+    font-size: clamp(2rem, 6vw, 4rem);
+    color: var(--gold);
+    text-shadow: 0 0 60px rgba(201,168,76,0.6);
+    text-align: center;
+    animation: pulseGold 2s ease-in-out infinite;
+  }
+  @keyframes pulseGold {
+    0%, 100% { text-shadow: 0 0 40px rgba(201,168,76,0.4); }
+    50%       { text-shadow: 0 0 80px rgba(201,168,76,0.8); }
+  }
+
+  /* ── NOTIFICATION ───────────────────────────────────── */
+  #notification {
+    position: fixed;
+    top: 1rem; right: 1rem;
+    background: var(--dark2);
+    border: 1px solid var(--gold);
+    padding: 0.8rem 1.2rem;
+    font-family: 'Cinzel', serif;
+    font-size: 0.75rem;
+    color: var(--gold);
+    z-index: 50;
+    transform: translateX(120%);
+    transition: transform 0.3s ease;
+    max-width: 300px;
+  }
+  #notification.show { transform: translateX(0); }
+  #notification.error { border-color: var(--red); color: #e88; }
+
+  /* ── SCROLLBAR ──────────────────────────────────────── */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: var(--dark); }
+  ::-webkit-scrollbar-thumb { background: var(--gold-dim); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- ── HEADER ──────────────────────────────────────────── -->
+<header>
+  <h1>Ring of the Middle Earth</h1>
+  <div class="subtitle">Distributed Strategy — The One Ring</div>
+</header>
+
+<!-- ── LOGIN SCREEN ────────────────────────────────────── -->
+<div id="login-screen">
+  <div class="login-box">
+    <h2>⬥ Choose Your Fate ⬥</h2>
+
+    <div class="form-group">
+      <label>Player Name</label>
+      <input type="text" id="player-id-input" placeholder="Enter your name..." />
+    </div>
+
+    <div class="form-group">
+      <label>Choose Side</label>
+      <div class="side-select">
+        <button class="side-btn" id="btn-light" onclick="selectSide('FREE_PEOPLES')">
+          🌟 Free Peoples<br><small style="opacity:0.7">Bear the Ring to Doom</small>
+        </button>
+        <button class="side-btn" id="btn-dark" onclick="selectSide('SHADOW')">
+          🔥 The Shadow<br><small style="opacity:0.7">Find the Ring Bearer</small>
+        </button>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Game Server</label>
+      <input type="text" id="server-url" value="http://localhost:80" />
+    </div>
+
+    <button class="btn" id="join-btn" onclick="joinGame()" disabled>
+      Enter Middle Earth
+    </button>
+  </div>
+</div>
+
+<!-- ── GAME SCREEN ──────────────────────────────────────── -->
+<div id="game-screen">
+
+  <!-- Status Bar -->
+  <div class="status-bar">
+    <div>
+      <span class="connection-dot" id="conn-dot"></span>
+      <span id="conn-status" style="font-size:0.7rem;color:#666">Disconnected</span>
+    </div>
+    <div class="turn-display">Turn <span id="turn-number">—</span></div>
+    <div id="player-badge-container"></div>
+  </div>
+
+  <!-- Main Grid -->
+  <div class="game-layout">
+
+    <!-- LEFT: Unit List -->
+    <div class="panel-left">
+      <div class="panel-title">⬥ Your Units</div>
+      <div id="unit-list"></div>
+    </div>
+
+    <!-- CENTER: Map Canvas -->
+    <div class="panel-center">
+      <canvas id="map-canvas"></canvas>
+    </div>
+
+    <!-- RIGHT: Orders + Event Log -->
+    <div class="panel-right">
+      <!-- Order Panel -->
+      <div class="order-panel">
+        <div class="panel-title">⬥ Give Order</div>
+        <div id="selected-unit-name" style="font-size:0.75rem;color:#aaa;margin-bottom:0.5rem;font-style:italic">
+          Select a unit first
+        </div>
+        <div class="order-type-grid" id="order-buttons"></div>
+        <div class="order-detail" id="order-detail">
+          Select a unit and choose an order type.
+        </div>
+        <button class="submit-btn" id="submit-order-btn" disabled onclick="submitOrder()">
+          ⬥ Issue Order
+        </button>
+      </div>
+
+      <!-- Event Log -->
+      <div class="panel-title" style="padding:0.5rem 0.8rem;border-bottom:1px solid rgba(201,168,76,0.2)">
+        ⬥ Chronicle of Events
+      </div>
+      <div class="event-log" id="event-log"></div>
+    </div>
+
+    <!-- Bottom Bar -->
+    <div class="bottom-bar">
+      <button class="analysis-btn" onclick="fetchAnalysis()">
+        ⬥ Analyse Routes
+      </button>
+      <div class="risk-display" id="risk-display"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Game Over Overlay -->
+<div id="gameover-overlay">
+  <div class="gameover-title" id="gameover-title">Victory</div>
+  <div style="font-family:'Cinzel',serif;color:#888;font-size:0.9rem;letter-spacing:0.2em"
+       id="gameover-cause"></div>
+  <button class="btn" style="max-width:200px" onclick="location.reload()">
+    Play Again
+  </button>
+</div>
+
+<!-- Notification -->
+<div id="notification"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════
+const State = {
+  playerId:     '',
+  side:         '',           // FREE_PEOPLES | SHADOW
+  serverURL:    '',
+  currentTurn:  0,
+  units:        [],
+  regions:      {},
+  paths:        {},
+  selectedUnit: null,
+  selectedOrder:null,
+  orderPayload: {},
+  sse:          null,
+};
+
+// ══════════════════════════════════════════════════════════
+// MAP DATA — 22 regions, positions for canvas rendering
+// ══════════════════════════════════════════════════════════
+const REGION_POS = {
+  // id: [x%, y%] — canvas percentage
+  'the-shire':    [8,  18],
+  'bree':         [18, 22],
+  'tharbad':      [15, 40],
+  'weathertop':   [28, 18],
+  'rivendell':    [35, 12],
+  'fangorn':      [28, 52],
+  'fords-of-isen':[22, 56],
+  'rohan-plains': [38, 55],
+  'moria':        [42, 30],
+  'helms-deep':   [30, 64],
+  'isengard':     [25, 62],
+  'edoras':       [42, 65],
+  'lothlorien':   [50, 38],
+  'dead-marshes': [60, 50],
+  'emyn-muil':    [58, 42],
+  'minas-tirith': [55, 72],
+  'ithilien':     [65, 62],
+  'osgiliath':    [63, 72],
+  'minas-morgul': [70, 75],
+  'cirith-ungol': [75, 65],
+  'mordor':       [80, 58],
+  'mount-doom':   [85, 65],
+};
+
+const PATHS_DATA = [
+  ['the-shire','bree'],['the-shire','tharbad'],
+  ['bree','weathertop'],['bree','rivendell'],['bree','tharbad'],
+  ['weathertop','rivendell'],['rivendell','moria'],['rivendell','lothlorien'],
+  ['moria','lothlorien'],['lothlorien','emyn-muil'],['lothlorien','rohan-plains'],
+  ['rohan-plains','fangorn'],['rohan-plains','edoras'],['rohan-plains','minas-tirith'],
+  ['fangorn','isengard'],['isengard','rohan-plains'],
+  ['tharbad','fords-of-isen'],['fords-of-isen','isengard'],
+  ['fords-of-isen','helms-deep'],['fords-of-isen','edoras'],
+  ['edoras','helms-deep'],['helms-deep','isengard'],['edoras','minas-tirith'],
+  ['emyn-muil','dead-marshes'],['emyn-muil','ithilien'],
+  ['dead-marshes','ithilien'],['dead-marshes','mordor'],
+  ['ithilien','minas-tirith'],['ithilien','osgiliath'],['ithilien','cirith-ungol'],
+  ['minas-tirith','osgiliath'],['osgiliath','minas-morgul'],
+  ['minas-morgul','cirith-ungol'],['minas-morgul','mordor'],
+  ['cirith-ungol','mordor'],['cirith-ungol','mount-doom'],
+  ['mordor','mount-doom'],
+];
+
+const TERRAIN_COLOR = {
+  PLAINS:'#2a3a1a', MOUNTAINS:'#3a3530', FOREST:'#1a3020',
+  FORTRESS:'#2a2a3a', VOLCANIC:'#3a1a0a', SWAMP:'#1a2a20',
+};
+const CONTROL_BORDER = {
+  FREE_PEOPLES:'#4a90d9', SHADOW:'#c0392b', NEUTRAL:'#666',
+};
+
+// ══════════════════════════════════════════════════════════
+// LOGIN
+// ══════════════════════════════════════════════════════════
+let chosenSide = '';
+
+function selectSide(side) {
+  chosenSide = side;
+  document.getElementById('btn-light').className =
+    'side-btn' + (side==='FREE_PEOPLES' ? ' active-light' : '');
+  document.getElementById('btn-dark').className =
+    'side-btn' + (side==='SHADOW' ? ' active-dark' : '');
+  checkLoginReady();
+}
+
+document.getElementById('player-id-input')
+  .addEventListener('input', checkLoginReady);
+
+function checkLoginReady() {
+  const name = document.getElementById('player-id-input').value.trim();
+  document.getElementById('join-btn').disabled = !(name && chosenSide);
+}
+
+async function joinGame() {
+  const playerId  = document.getElementById('player-id-input').value.trim();
+  const serverURL = document.getElementById('server-url').value.trim();
+
+  State.playerId  = playerId;
+  State.side      = chosenSide;
+  State.serverURL = serverURL;
+
+  // Oyunu başlat (veya mevcut oyuna katıl)
+  try {
+    await fetch(`${serverURL}/game/start`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        mode: 'HVH',
+        lightPlayerId: chosenSide === 'FREE_PEOPLES' ? playerId : 'dark-opponent',
+        darkPlayerId:  chosenSide === 'SHADOW'       ? playerId : 'light-opponent',
+      }),
+    });
+  } catch(e) {
+    // Oyun zaten başlamış olabilir — devam et
+  }
+
+  // Ekranları değiştir
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('game-screen').style.display  = 'block';
+
+  // Player badge
+  const badge = document.getElementById('player-badge-container');
+  badge.innerHTML = `<div class="player-badge ${chosenSide==='FREE_PEOPLES'?'light':'dark'}">
+    ${chosenSide==='FREE_PEOPLES'?'🌟 Free Peoples':'🔥 The Shadow'} — ${playerId}
+  </div>`;
+
+  // SSE bağlantısı
+  connectSSE();
+
+  // İlk durum
+  await fetchState();
+  initCanvas();
+}
+
+// ══════════════════════════════════════════════════════════
+// SSE
+// ══════════════════════════════════════════════════════════
+function connectSSE() {
+  const url = `${State.serverURL}/events?playerId=${State.playerId}`;
+  State.sse = new EventSource(url);
+
+  State.sse.onopen = () => {
+    document.getElementById('conn-dot').className = 'connection-dot connected';
+    document.getElementById('conn-status').textContent = 'Connected';
+    document.getElementById('conn-status').style.color = '#4caf50';
+  };
+
+  State.sse.onerror = () => {
+    document.getElementById('conn-dot').className = 'connection-dot';
+    document.getElementById('conn-status').textContent = 'Reconnecting...';
+    document.getElementById('conn-status').style.color = '#ff9800';
+  };
+
+  // Event handler'ları
+  State.sse.addEventListener('game.broadcast', e => {
+    const data = JSON.parse(e.data);
+    handleWorldState(data);
+  });
+
+  State.sse.addEventListener('game.ring.position', e => {
+    const data = JSON.parse(e.data);
+    // Sadece Light Side alır
+    logEvent('RingBearerMoved', `Frodo is at ${data.trueRegion}`, 'movement');
+    notify(`🌟 Frodo moved to ${data.trueRegion}`);
+  });
+
+  State.sse.addEventListener('game.ring.detection', e => {
+    const data = JSON.parse(e.data);
+    logEvent('RingBearerDetected', `Ring Bearer detected! ${data.regionId || data.pathId}`, 'detection');
+    notify(`🔥 Ring Bearer detected!`, 'error');
+  });
+
+  State.sse.addEventListener('game.events.unit', e => {
+    const data = JSON.parse(e.data);
+    logEvent(data.eventType || 'UnitEvent',
+      `${data.unitId}: ${data.eventType}`, '');
+    fetchState(); // Durumu güncelle
+  });
+
+  State.sse.addEventListener('game.events.path', e => {
+    const data = JSON.parse(e.data);
+    logEvent('PathChanged', `${data.pathId} → ${data.status}`, '');
+    fetchState();
+  });
+
+  State.sse.addEventListener('game.events.region', e => {
+    const data = JSON.parse(e.data);
+    if (data.eventType === 'BATTLE_RESOLVED') {
+      logEvent('BattleResolved',
+        `${data.regionId}: ${data.attackerWon ? 'Attackers prevail' : 'Defenders hold'}`, '');
+    }
+    fetchState();
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// STATE FETCH
+// ══════════════════════════════════════════════════════════
+async function fetchState() {
+  try {
+    const res = await fetch(
+      `${State.serverURL}/game/state?playerId=${State.playerId}`
+    );
+    const data = await res.json();
+    handleWorldState(data);
+  } catch(e) {
+    console.error('State fetch failed:', e);
+  }
+}
+
+function handleWorldState(data) {
+  if (data.turn) {
+    State.currentTurn = data.turn;
+    document.getElementById('turn-number').textContent = data.turn;
+  }
+
+  if (data.units)   State.units   = data.units;
+  if (data.regions) {
+    State.regions = {};
+    data.regions.forEach(r => State.regions[r.id] = r);
+  }
+  if (data.paths) {
+    State.paths = {};
+    data.paths.forEach(p => State.paths[p.id] = p);
+  }
+
+  if (data.winner || (data.type === 'GameOver')) {
+    showGameOver(data.winner, data.cause);
+    return;
+  }
+
+  renderUnits();
+  renderMap();
+}
+
+// ══════════════════════════════════════════════════════════
+// UNIT LIST
+// ══════════════════════════════════════════════════════════
+function renderUnits() {
+  const container = document.getElementById('unit-list');
+  const mySide = State.side;
+
+  const myUnits = State.units.filter(u => {
+    // Side bilgisi config'den geliyor — basit heuristic
+    if (mySide === 'FREE_PEOPLES')
+      return ['ring-bearer','aragorn','legolas','gimli',
+              'rohan-cavalry','gondor-army','gandalf'].includes(u.id);
+    else
+      return ['witch-king','nazgul-2','nazgul-3',
+              'uruk-hai-legion','saruman','sauron'].includes(u.id);
+  });
+
+  container.innerHTML = myUnits.map(unit => {
+    const maxStr = getMaxStrength(unit.id);
+    const pct    = maxStr ? (unit.strength / maxStr) * 100 : 0;
+    const status = (unit.status || 'ACTIVE').toLowerCase();
+    const region = unit.currentRegion || unit.region || '—';
+    const isSelected = State.selectedUnit?.id === unit.id;
+
+    return `
+    <div class="unit-card ${status} ${isSelected?'selected':''}"
+         onclick="selectUnit('${unit.id}')">
+      <div class="status-badge ${status}">${unit.status||'ACTIVE'}</div>
+      <div class="unit-name">${formatUnitName(unit.id)}</div>
+      <div class="unit-meta">
+        <span>STR ${unit.strength||'?'}</span>
+        ${unit.cooldown > 0 ? `<span>CD ${unit.cooldown}</span>` : ''}
+        ${unit.respawnTurns > 0 ? `<span>Respawn ${unit.respawnTurns}</span>` : ''}
+      </div>
+      <div class="strength-bar">
+        <div class="strength-fill" style="width:${pct}%"></div>
+      </div>
+      <div class="unit-region">${region === '' ? '(hidden)' : region}</div>
+    </div>`;
+  }).join('');
+}
+
+function formatUnitName(id) {
+  const names = {
+    'ring-bearer':'Frodo Baggins','aragorn':'Aragorn',
+    'legolas':'Legolas','gimli':'Gimli','rohan-cavalry':'Riders of Rohan',
+    'gondor-army':'Army of Gondor','gandalf':'Gandalf',
+    'witch-king':'Witch-King','nazgul-2':'The Dark Marshal',
+    'nazgul-3':'The Betrayer','uruk-hai-legion':'Uruk-hai Legion',
+    'saruman':'Saruman','sauron':'Sauron',
+  };
+  return names[id] || id;
+}
+
+function getMaxStrength(id) {
+  const str = {
+    'ring-bearer':1,'aragorn':5,'legolas':3,'gimli':3,
+    'rohan-cavalry':4,'gondor-army':5,'gandalf':4,
+    'witch-king':5,'nazgul-2':3,'nazgul-3':3,
+    'uruk-hai-legion':5,'saruman':4,'sauron':5,
+  };
+  return str[id] || 5;
+}
+
+function selectUnit(unitId) {
+  const unit = State.units.find(u => u.id === unitId);
+  if (!unit) return;
+
+  State.selectedUnit  = unit;
+  State.selectedOrder = null;
+  State.orderPayload  = {};
+
+  document.getElementById('selected-unit-name').textContent =
+    formatUnitName(unitId);
+
+  renderUnits();
+  renderOrderButtons(unitId);
+  document.getElementById('order-detail').textContent =
+    'Choose an order type above.';
+  document.getElementById('submit-order-btn').disabled = true;
+}
+
+// ══════════════════════════════════════════════════════════
+// ORDER PANEL
+// ══════════════════════════════════════════════════════════
+const ORDER_TYPES = [
+  {id:'ASSIGN_ROUTE',   label:'Assign Route'},
+  {id:'REDIRECT_UNIT',  label:'Redirect'},
+  {id:'ATTACK_REGION',  label:'Attack'},
+  {id:'BLOCK_PATH',     label:'Block Path'},
+  {id:'SEARCH_PATH',    label:'Search Path'},
+  {id:'MAIA_ABILITY',   label:'Maia Ability'},
+  {id:'FORTIFY_REGION', label:'Fortify'},
+  {id:'DESTROY_RING',   label:'Destroy Ring'},
+];
+
+async function renderOrderButtons(unitId) {
+  const container = document.getElementById('order-buttons');
+
+  let available = [];
+  try {
+    const res = await fetch(
+      `${State.serverURL}/orders/available?unitId=${unitId}&playerId=${State.playerId}`
+    );
+    const data = await res.json();
+    available = data.availableOrders || [];
+  } catch(e) {
+    available = ORDER_TYPES.map(o => o.id);
+  }
+
+  container.innerHTML = ORDER_TYPES.map(o => `
+    <button class="order-btn ${State.selectedOrder===o.id?'active':''}"
+            ${available.includes(o.id)?'':'disabled'}
+            onclick="selectOrder('${o.id}')">
+      ${o.label}
+    </button>
+  `).join('');
+}
+
+function selectOrder(orderType) {
+  State.selectedOrder = orderType;
+  State.orderPayload  = {};
+
+  const detail = document.getElementById('order-detail');
+
+  switch(orderType) {
+    case 'ASSIGN_ROUTE':
+    case 'REDIRECT_UNIT':
+      detail.innerHTML = `
+        <label style="display:block;margin-bottom:4px;font-size:0.6rem;
+                       letter-spacing:0.1em;color:var(--gold-dim)">
+          PATH IDs (comma separated)
+        </label>
+        <input type="text" id="path-ids-input" placeholder="shire-to-bree,bree-to-weathertop"
+               style="width:100%;background:var(--dark);border:1px solid #444;
+                      color:var(--parchment);padding:4px 6px;font-size:0.7rem;outline:none"
+               oninput="State.orderPayload.pathIds=this.value.split(',').map(s=>s.trim())"/>`;
+      break;
+
+    case 'ATTACK_REGION':
+    case 'REINFORCE_REGION':
+      detail.innerHTML = `
+        <label style="display:block;margin-bottom:4px;font-size:0.6rem;
+                       letter-spacing:0.1em;color:var(--gold-dim)">TARGET REGION</label>
+        <select id="region-select"
+                style="width:100%;background:var(--dark);border:1px solid #444;
+                       color:var(--parchment);padding:4px;font-size:0.7rem"
+                onchange="State.orderPayload.targetRegion=this.value">
+          <option value="">Select region...</option>
+          ${Object.keys(REGION_POS).map(r =>
+            `<option value="${r}">${r}</option>`).join('')}
+        </select>`;
+      break;
+
+    case 'BLOCK_PATH':
+    case 'SEARCH_PATH':
+      detail.innerHTML = `
+        <label style="display:block;margin-bottom:4px;font-size:0.6rem;
+                       letter-spacing:0.1em;color:var(--gold-dim)">PATH ID</label>
+        <input type="text" id="path-id-input" placeholder="lothlorien-to-emyn-muil"
+               style="width:100%;background:var(--dark);border:1px solid #444;
+                      color:var(--parchment);padding:4px 6px;font-size:0.7rem;outline:none"
+               oninput="State.orderPayload.pathId=this.value"/>`;
+      break;
+
+    case 'MAIA_ABILITY':
+      detail.innerHTML = `
+        <label style="display:block;margin-bottom:4px;font-size:0.6rem;
+                       letter-spacing:0.1em;color:var(--gold-dim)">TARGET PATH</label>
+        <input type="text" id="maia-path-input" placeholder="rivendell-to-moria"
+               style="width:100%;background:var(--dark);border:1px solid #444;
+                      color:var(--parchment);padding:4px 6px;font-size:0.7rem;outline:none"
+               oninput="State.orderPayload.targetPathId=this.value"/>`;
+      break;
+
+    case 'FORTIFY_REGION':
+      detail.textContent = 'Fortify current region (+2 defence for 2 turns).';
+      State.orderPayload = {};
+      break;
+
+    case 'DESTROY_RING':
+      detail.innerHTML = `
+        <span style="color:#4caf50;font-size:0.75rem">
+          ⬥ The Ring shall be unmade.<br>
+          Submit only when at Mount Doom with no Shadow units present.
+        </span>`;
+      State.orderPayload = {};
+      break;
+
+    default:
+      detail.textContent = orderType;
+  }
+
+  document.getElementById('submit-order-btn').disabled = false;
+
+  // Order button'larını güncelle
+  document.querySelectorAll('.order-btn').forEach(btn => {
+    btn.classList.remove('active');
+    if (btn.textContent.trim() ===
+        ORDER_TYPES.find(o=>o.id===orderType)?.label) {
+      btn.classList.add('active');
+    }
+  });
+}
+
+async function submitOrder() {
+  if (!State.selectedUnit || !State.selectedOrder) return;
+
+  const body = {
+    orderType: State.selectedOrder,
+    playerId:  State.playerId,
+    unitId:    State.selectedUnit.id,
+    turn:      State.currentTurn,
+    payload:   State.orderPayload,
+  };
+
+  try {
+    const res = await fetch(`${State.serverURL}/order`, {
+      method:  'POST',
+      headers: {'Content-Type':'application/json'},
+      body:    JSON.stringify(body),
+    });
+
+    if (res.status === 202) {
+      notify(`Order sent: ${State.selectedOrder}`);
+      logEvent('OrderSubmitted',
+        `${formatUnitName(State.selectedUnit.id)}: ${State.selectedOrder}`, '');
+      State.selectedOrder = null;
+      document.getElementById('submit-order-btn').disabled = true;
+    } else {
+      const err = await res.json();
+      notify(err.message || 'Order rejected', 'error');
+    }
+  } catch(e) {
+    notify('Server unreachable', 'error');
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// CANVAS MAP
+// ══════════════════════════════════════════════════════════
+let canvas, ctx;
+
+function initCanvas() {
+  canvas = document.getElementById('map-canvas');
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+  renderMap();
+}
+
+function resizeCanvas() {
+  const parent = canvas.parentElement;
+  canvas.width  = parent.clientWidth;
+  canvas.height = parent.clientHeight || 500;
+  renderMap();
+}
+
+function renderMap() {
+  if (!canvas) return;
+  ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  // Background
+  ctx.fillStyle = '#0a0806';
+  ctx.fillRect(0, 0, W, H);
+
+  // Subtle grid
+  ctx.strokeStyle = 'rgba(201,168,76,0.03)';
+  ctx.lineWidth = 1;
+  for (let x=0; x<W; x+=40) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+  for (let y=0; y<H; y+=40) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+
+  // Paths
+  PATHS_DATA.forEach(([a, b]) => {
+    const posA = REGION_POS[a], posB = REGION_POS[b];
+    if (!posA || !posB) return;
+
+    const ax = posA[0]/100*W, ay = posA[1]/100*H;
+    const bx = posB[0]/100*W, by = posB[1]/100*H;
+
+    // Find path status
+    const pathId = findPathId(a, b);
+    const pathState = pathId ? State.paths[pathId] : null;
+
+    let lineColor = 'rgba(201,168,76,0.15)';
+    let lineWidth = 1;
+    if (pathState) {
+      switch(pathState.status) {
+        case 'BLOCKED':         lineColor='rgba(192,57,43,0.7)'; lineWidth=2; break;
+        case 'THREATENED':      lineColor='rgba(255,152,0,0.5)'; lineWidth=1.5; break;
+        case 'TEMPORARILY_OPEN':lineColor='rgba(74,144,217,0.7)'; lineWidth=2; break;
+      }
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(bx, by);
+    ctx.strokeStyle = lineColor;
+    ctx.lineWidth   = lineWidth;
+    ctx.stroke();
+
+    // Surveillance dots
+    if (pathState && pathState.surveillanceLevel > 0) {
+      const mx = (ax+bx)/2, my = (ay+by)/2;
+      for (let i=0; i<pathState.surveillanceLevel; i++) {
+        ctx.beginPath();
+        ctx.arc(mx + i*6 - 3, my - 4, 2, 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(255,152,0,0.8)';
+        ctx.fill();
+      }
+    }
+  });
+
+  // Regions
+  Object.entries(REGION_POS).forEach(([id, [px, py]]) => {
+    const x = px/100*W, y = py/100*H;
+    const regionState = State.regions[id];
+    const ctrl = regionState?.controller || 'NEUTRAL';
+
+    // Node background
+    const radius = 18;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI*2);
+    ctx.fillStyle = TERRAIN_COLOR['PLAINS']; // default
+    ctx.fill();
+
+    // Control border
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI*2);
+    ctx.strokeStyle = CONTROL_BORDER[ctrl] || '#666';
+    ctx.lineWidth   = ctrl === 'NEUTRAL' ? 1 : 2;
+    ctx.stroke();
+
+    // Fortification indicator
+    if (regionState?.fortified) {
+      ctx.beginPath();
+      ctx.arc(x, y, radius + 4, 0, Math.PI*2);
+      ctx.strokeStyle = 'rgba(201,168,76,0.6)';
+      ctx.lineWidth   = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // Region name
+    ctx.fillStyle = '#c9a84c';
+    ctx.font      = '7px Cinzel, serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(formatRegionName(id), x, y + radius + 10);
+
+    // Units in region
+    const unitsHere = State.units.filter(u =>
+      (u.currentRegion || u.region) === id
+    );
+    if (unitsHere.length > 0) {
+      ctx.fillStyle = '#fff';
+      ctx.font      = '8px sans-serif';
+      ctx.fillText(`(${unitsHere.length})`, x, y + 4);
+    }
+  });
+
+  // Ring Bearer special marker (Light Side only)
+  if (State.side === 'FREE_PEOPLES') {
+    const rb = State.units.find(u => u.id === 'ring-bearer');
+    if (rb && rb.currentRegion && rb.currentRegion !== '') {
+      const pos = REGION_POS[rb.currentRegion];
+      if (pos) {
+        const x = pos[0]/100*W, y = pos[1]/100*H;
+        // Glowing ring
+        const gradient = ctx.createRadialGradient(x, y, 0, x, y, 22);
+        gradient.addColorStop(0, 'rgba(201,168,76,0.4)');
+        gradient.addColorStop(1, 'rgba(201,168,76,0)');
+        ctx.beginPath();
+        ctx.arc(x, y, 22, 0, Math.PI*2);
+        ctx.fillStyle = gradient;
+        ctx.fill();
+
+        ctx.fillStyle = '#c9a84c';
+        ctx.font      = '12px serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('💍', x, y + 5);
+      }
+    }
+  }
+}
+
+function findPathId(a, b) {
+  const candidates = Object.keys(State.paths);
+  for (const id of candidates) {
+    if ((id.includes(a) && id.includes(b)) ||
+        (id.includes(b) && id.includes(a))) return id;
+  }
+  return null;
+}
+
+function formatRegionName(id) {
+  const map = {
+    'the-shire':'Shire','bree':'Bree','tharbad':'Tharbad',
+    'weathertop':'Weathertop','rivendell':'Rivendell',
+    'fangorn':'Fangorn','fords-of-isen':'Fords','rohan-plains':'Rohan',
+    'moria':'Moria','helms-deep':'Helm\'s','isengard':'Isengard',
+    'edoras':'Edoras','lothlorien':'Lothlórien','dead-marshes':'Marshes',
+    'emyn-muil':'Emyn Muil','minas-tirith':'M.Tirith','ithilien':'Ithilien',
+    'osgiliath':'Osgiliath','minas-morgul':'M.Morgul',
+    'cirith-ungol':'C.Ungol','mordor':'Mordor','mount-doom':'Mt.Doom',
+  };
+  return map[id] || id;
+}
+
+// ══════════════════════════════════════════════════════════
+// ANALYSIS
+// ══════════════════════════════════════════════════════════
+async function fetchAnalysis() {
+  const endpoint = State.side === 'FREE_PEOPLES'
+    ? '/analysis/routes'
+    : '/analysis/intercept';
+
+  try {
+    const res  = await fetch(`${State.serverURL}${endpoint}?playerId=${State.playerId}`);
+    const data = await res.json();
+
+    if (State.side === 'FREE_PEOPLES' && data.routes) {
+      const best = data.routes[0];
+      document.getElementById('risk-display').textContent =
+        best ? `Best route: ${best.route?.id} (risk ${best.riskScore})` : '';
+      logEvent('RouteAnalysis',
+        `Recommended: ${data.recommended} — ${data.routes?.length} routes scored`, '');
+    } else if (data.byUnit) {
+      logEvent('InterceptAnalysis',
+        `${data.byUnit?.length} Nazgul interception plans computed`, '');
+    }
+  } catch(e) {
+    notify('Analysis unavailable', 'error');
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// EVENT LOG
+// ══════════════════════════════════════════════════════════
+function logEvent(type, message, cssClass) {
+  const log = document.getElementById('event-log');
+  const entry = document.createElement('div');
+  entry.className = `event-entry ${cssClass}`;
+  entry.innerHTML = `<span class="ev-type">${type}</span>${message}`;
+  log.insertBefore(entry, log.firstChild);
+
+  // Max 100 entry
+  while (log.children.length > 100) {
+    log.removeChild(log.lastChild);
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// NOTIFICATION
+// ══════════════════════════════════════════════════════════
+let notifTimer;
+function notify(msg, type='') {
+  const el = document.getElementById('notification');
+  el.textContent = msg;
+  el.className   = `show ${type}`;
+  clearTimeout(notifTimer);
+  notifTimer = setTimeout(() => el.className = type, 3000);
+}
+
+// ══════════════════════════════════════════════════════════
+// GAME OVER
+// ══════════════════════════════════════════════════════════
+function showGameOver(winner, cause) {
+  const overlay = document.getElementById('gameover-overlay');
+  const title   = document.getElementById('gameover-title');
+  const causeEl = document.getElementById('gameover-cause');
+
+  if (winner === 'FREE_PEOPLES') {
+    title.textContent = '🌟 The Ring is Destroyed!';
+    title.style.color = '#4a90d9';
+  } else if (winner === 'SHADOW') {
+    title.textContent = '🔥 Darkness Prevails';
+    title.style.color = '#c0392b';
+  } else {
+    title.textContent = '⚖️ The Age Ends in Shadow';
+    title.style.color = '#c9a84c';
+  }
+
+  causeEl.textContent = cause || '';
+  overlay.classList.add('show');
+
+  if (State.sse) State.sse.close();
+}
+
+// ══════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  // Canvas click — region seçimi
+  document.getElementById('map-canvas')?.addEventListener('click', e => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+
+    // En yakın region'ı bul
+    let closest = null, minDist = Infinity;
+    Object.entries(REGION_POS).forEach(([id, [px, py]]) => {
+      const x = px/100*canvas.width;
+      const y = py/100*canvas.height;
+      const d = Math.hypot(mx-x, my-y);
+      if (d < minDist && d < 25) { minDist = d; closest = id; }
+    });
+
+    if (closest) {
+      // Seçili order için region set et
+      const regionSelect = document.getElementById('region-select');
+      if (regionSelect) regionSelect.value = closest;
+      State.orderPayload.targetRegion = closest;
+      notify(`Selected: ${closest}`);
+    }
+  });
+});
+</script>
+</body>
+</html>
