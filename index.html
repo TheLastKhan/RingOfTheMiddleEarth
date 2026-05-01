@@ -690,12 +690,21 @@ const PATHS_DATA = [
   ['mordor','mount-doom'],
 ];
 
-const TERRAIN_COLOR = {
-  PLAINS:'#2a3a1a', MOUNTAINS:'#3a3530', FOREST:'#1a3020',
-  FORTRESS:'#2a2a3a', VOLCANIC:'#3a1a0a', SWAMP:'#1a2a20',
+const NODE_FILL = {
+  FREE_PEOPLES:'#4b7bec', SHADOW:'#eb3b5a', NEUTRAL:'#a5b1c2',
 };
-const CONTROL_BORDER = {
-  FREE_PEOPLES:'#4a90d9', SHADOW:'#c0392b', NEUTRAL:'#666',
+const PATH_COST = {
+  'bree-to-rivendell':2,
+  'shire-to-tharbad':2,
+  'rivendell-to-moria':2,
+  'rivendell-to-lothlorien':2,
+  'rohan-plains-to-minas-tirith':2,
+  'tharbad-to-fords-of-isen':2,
+  'edoras-to-minas-tirith':2,
+  'emyn-muil-to-ithilien':2,
+  'dead-marshes-to-mordor':2,
+  'ithilien-to-cirith-ungol':2,
+  'cirith-ungol-to-mount-doom':2,
 };
 
 // ══════════════════════════════════════════════════════════
@@ -1125,11 +1134,11 @@ function renderMap() {
   const W = canvas.width, H = canvas.height;
 
   // Background
-  ctx.fillStyle = '#0a0806';
+  ctx.fillStyle = '#f8f5eb';
   ctx.fillRect(0, 0, W, H);
 
   // Subtle grid
-  ctx.strokeStyle = 'rgba(201,168,76,0.03)';
+  ctx.strokeStyle = 'rgba(44,62,80,0.04)';
   ctx.lineWidth = 1;
   for (let x=0; x<W; x+=40) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
   for (let y=0; y<H; y+=40) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
@@ -1146,13 +1155,15 @@ function renderMap() {
     const pathId = findPathId(a, b);
     const pathState = pathId ? State.paths[pathId] : null;
 
-    let lineColor = 'rgba(201,168,76,0.15)';
-    let lineWidth = 1;
+    const cost = pathId ? (PATH_COST[pathId] || 1) : 1;
+    let lineColor = cost === 2 ? '#555' : '#888';
+    let lineWidth = cost === 2 ? 4 : 3;
+    ctx.setLineDash(cost === 2 ? [8, 8] : []);
     if (pathState) {
       switch(pathState.status) {
-        case 'BLOCKED':         lineColor='rgba(192,57,43,0.7)'; lineWidth=2; break;
-        case 'THREATENED':      lineColor='rgba(255,152,0,0.5)'; lineWidth=1.5; break;
-        case 'TEMPORARILY_OPEN':lineColor='rgba(74,144,217,0.7)'; lineWidth=2; break;
+        case 'BLOCKED':         lineColor='#eb3b5a'; lineWidth=4; ctx.setLineDash([]); break;
+        case 'THREATENED':      lineColor='#ffdd59'; lineWidth=4; break;
+        case 'TEMPORARILY_OPEN':lineColor='#4b7bec'; lineWidth=4; ctx.setLineDash([]); break;
       }
     }
 
@@ -1162,6 +1173,7 @@ function renderMap() {
     ctx.strokeStyle = lineColor;
     ctx.lineWidth   = lineWidth;
     ctx.stroke();
+    ctx.setLineDash([]);
 
     // Surveillance dots
     if (pathState && pathState.surveillanceLevel > 0) {
@@ -1185,14 +1197,14 @@ function renderMap() {
     const radius = 18;
     ctx.beginPath();
     ctx.arc(x, y, radius, 0, Math.PI*2);
-    ctx.fillStyle = TERRAIN_COLOR['PLAINS']; // default
+    ctx.fillStyle = NODE_FILL[ctrl] || NODE_FILL.NEUTRAL;
     ctx.fill();
 
-    // Control border
+    // SVG-style node border
     ctx.beginPath();
     ctx.arc(x, y, radius, 0, Math.PI*2);
-    ctx.strokeStyle = CONTROL_BORDER[ctrl] || '#666';
-    ctx.lineWidth   = ctrl === 'NEUTRAL' ? 1 : 2;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth   = 3;
     ctx.stroke();
 
     // Fortification indicator
@@ -1207,7 +1219,7 @@ function renderMap() {
     }
 
     // Region name
-    ctx.fillStyle = '#c9a84c';
+    ctx.fillStyle = '#2c3e50';
     ctx.font      = '13px Cinzel, serif';
     ctx.textAlign = 'center';
     ctx.fillText(formatRegionName(id), x, y + radius + 10);
