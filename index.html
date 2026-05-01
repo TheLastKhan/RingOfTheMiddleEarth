@@ -1317,7 +1317,7 @@ function drawMapLegend(ctx, W, H) {
   const gap = 24;
   const totalW = boxW * 3 + gap * 2;
   const startX = Math.max(18, (W - totalW) / 2);
-  const y = Math.min(H * 0.88, H - boxH - 10);
+  const y = Math.min(H * 0.92, H - boxH - 4);
 
   drawLegendBox(ctx, startX, y, boxW, boxH, 'Start Control');
   drawLegendDot(ctx, startX + 26, y + 52, NODE_FILL.FREE_PEOPLES, 'Free Peoples');
