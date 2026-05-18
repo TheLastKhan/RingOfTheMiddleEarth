@@ -53,6 +53,11 @@ func NewServer(cfg *config.GameConfig, c *cache.WorldStateCache, r *router.Event
 	}
 }
 
+// ResetTurn clears per-turn validation state.
+func (s *Server) ResetTurn() {
+	s.validator.ResetTurn()
+}
+
 // Start begins the HTTP server.
 func (s *Server) Start() error {
 	mux := http.NewServeMux()
@@ -143,6 +148,7 @@ func (s *Server) handleOrder(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid order format", http.StatusBadRequest)
 		return
 	}
+	normalizeOrderPayload(&order)
 
 	// Validate
 	result := s.validator.Validate(order)
@@ -173,6 +179,36 @@ func (s *Server) handleOrder(w http.ResponseWriter, r *http.Request) {
 }
 
 // GET /orders/available — Available orders for a unit
+func normalizeOrderPayload(order *validation.Order) {
+	if order.Payload == nil {
+		return
+	}
+	if order.PathID == "" {
+		if value, ok := order.Payload["pathId"].(string); ok {
+			order.PathID = value
+		}
+	}
+	if order.TargetRegion == "" {
+		if value, ok := order.Payload["targetRegion"].(string); ok {
+			order.TargetRegion = value
+		}
+	}
+	if order.TargetPathID == "" {
+		if value, ok := order.Payload["targetPathId"].(string); ok {
+			order.TargetPathID = value
+		}
+	}
+	if len(order.PathIDs) == 0 {
+		if values, ok := order.Payload["pathIds"].([]interface{}); ok {
+			for _, value := range values {
+				if pathID, ok := value.(string); ok && pathID != "" {
+					order.PathIDs = append(order.PathIDs, pathID)
+				}
+			}
+		}
+	}
+}
+
 func (s *Server) handleAvailableOrders(w http.ResponseWriter, r *http.Request) {
 	unitID := r.URL.Query().Get("unitId")
 

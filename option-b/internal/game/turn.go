@@ -16,14 +16,14 @@ import (
 
 // TurnState holds mutable game state for one turn of processing.
 type TurnState struct {
-	Turn        int
-	Units       map[string]*UnitRuntime
-	Regions     map[string]*RegionRuntime
-	Paths       map[string]*PathRuntime
-	LightView   *LightView
-	DarkView    *DarkViewData
-	Config      *config.GameConfig
-	Graph       *GameGraph
+	Turn      int
+	Units     map[string]*UnitRuntime
+	Regions   map[string]*RegionRuntime
+	Paths     map[string]*PathRuntime
+	LightView *LightView
+	DarkView  *DarkViewData
+	Config    *config.GameConfig
+	Graph     *GameGraph
 }
 
 // UnitRuntime is the mutable runtime state of a unit during turn processing.
@@ -70,13 +70,13 @@ type DarkViewData struct {
 
 // Order represents a single player order.
 type Order struct {
-	OrderType    string `json:"orderType"`
-	PlayerID     string `json:"playerId"`
-	UnitID       string `json:"unitId"`
-	PathID       string `json:"pathId,omitempty"`
+	OrderType    string   `json:"orderType"`
+	PlayerID     string   `json:"playerId"`
+	UnitID       string   `json:"unitId"`
+	PathID       string   `json:"pathId,omitempty"`
 	PathIDs      []string `json:"pathIds,omitempty"`
-	TargetRegion string `json:"targetRegion,omitempty"`
-	TargetPathID string `json:"targetPathId,omitempty"`
+	TargetRegion string   `json:"targetRegion,omitempty"`
+	TargetPathID string   `json:"targetPathId,omitempty"`
 }
 
 // GameEvent is a produced event from turn processing.
@@ -147,10 +147,10 @@ func (tp *TurnProcessor) ProcessTurn(state *TurnState, orders []Order) []GameEve
 	// Step 13: Check win conditions
 	events = append(events, tp.step13CheckWinConditions(state)...)
 
+	state.Turn++
+
 	// Produce world state snapshot
 	events = append(events, tp.produceWorldSnapshot(state))
-
-	state.Turn++
 
 	return events
 }
@@ -196,8 +196,7 @@ func (tp *TurnProcessor) step3ProcessBlocking(state *TurnState, orders []Order) 
 		}
 
 		// FellowshipGuard at endpoint → block path for Nazgul
-		unitCfg := unit.Config
-		if unitCfg.Class == "FellowshipGuard" && tp.graph.IsEndpointOf(unit.CurrentRegion, order.PathID) {
+		if tp.graph.IsEndpointOf(unit.CurrentRegion, order.PathID) {
 			path.Status = "BLOCKED"
 			path.BlockedBy = unit.ID
 			events = append(events, makeEvent("game.events.path", order.PathID, map[string]interface{}{
@@ -564,10 +563,10 @@ func (tp *TurnProcessor) step13CheckWinConditions(state *TurnState) []GameEvent 
 			regionCfg := tp.cfg.RegionsByID[unit.CurrentRegion]
 			if regionCfg.SpecialRole == "RING_DESTRUCTION_SITE" {
 				events = append(events, makeEvent("game.broadcast", "", map[string]interface{}{
-					"type":    "GAME_OVER",
-					"winner":  "FREE_PEOPLES",
-					"cause":   "Ring destroyed at Mount Doom",
-					"turn":    state.Turn,
+					"type":   "GAME_OVER",
+					"winner": "FREE_PEOPLES",
+					"cause":  "Ring destroyed at Mount Doom",
+					"turn":   state.Turn,
 				}))
 				return events
 			}
@@ -602,11 +601,25 @@ func (tp *TurnProcessor) step13CheckWinConditions(state *TurnState) []GameEvent 
 }
 
 func (tp *TurnProcessor) produceWorldSnapshot(state *TurnState) GameEvent {
+	units := make([]*UnitRuntime, 0, len(state.Units))
+	for _, unit := range state.Units {
+		units = append(units, unit)
+	}
+	regions := make([]*RegionRuntime, 0, len(state.Regions))
+	for _, region := range state.Regions {
+		regions = append(regions, region)
+	}
+	paths := make([]*PathRuntime, 0, len(state.Paths))
+	for _, path := range state.Paths {
+		paths = append(paths, path)
+	}
+
 	snapshot := map[string]interface{}{
 		"turn":      state.Turn,
 		"type":      "WORLD_STATE",
-		"units":     state.Units,
-		"regions":   state.Regions,
+		"units":     units,
+		"regions":   regions,
+		"paths":     paths,
 		"timestamp": time.Now().UnixMilli(),
 	}
 	return makeEvent("game.broadcast", "", snapshot)
@@ -629,14 +642,14 @@ func makeEvent(topic, key string, data interface{}) GameEvent {
 // InitTurnState creates the initial turn state from configuration.
 func InitTurnState(cfg *config.GameConfig, graph *GameGraph) *TurnState {
 	state := &TurnState{
-		Turn:    1,
-		Units:   make(map[string]*UnitRuntime),
-		Regions: make(map[string]*RegionRuntime),
-		Paths:   make(map[string]*PathRuntime),
+		Turn:      1,
+		Units:     make(map[string]*UnitRuntime),
+		Regions:   make(map[string]*RegionRuntime),
+		Paths:     make(map[string]*PathRuntime),
 		LightView: &LightView{},
 		DarkView:  &DarkViewData{},
-		Config:  cfg,
-		Graph:   graph,
+		Config:    cfg,
+		Graph:     graph,
 	}
 
 	for _, u := range cfg.Units {

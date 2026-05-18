@@ -78,13 +78,13 @@ type CanonicalRoute struct {
 
 // GameConfig is the top-level configuration structure.
 type GameConfig struct {
-	HiddenUntilTurn      int              `json:"hiddenUntilTurn"`
-	MaxTurns             int              `json:"maxTurns"`
-	TurnDurationSeconds  int              `json:"turnDurationSeconds"`
-	Units                []UnitConfig     `json:"units"`
-	Regions              []RegionConfig   `json:"regions"`
-	Paths                []PathConfig     `json:"paths"`
-	CanonicalRoutes      []CanonicalRoute `json:"canonicalRoutes"`
+	HiddenUntilTurn     int              `json:"hiddenUntilTurn"`
+	MaxTurns            int              `json:"maxTurns"`
+	TurnDurationSeconds int              `json:"turnDurationSeconds"`
+	Units               []UnitConfig     `json:"units"`
+	Regions             []RegionConfig   `json:"regions"`
+	Paths               []PathConfig     `json:"paths"`
+	CanonicalRoutes     []CanonicalRoute `json:"canonicalRoutes"`
 
 	// Indexed lookups — populated after loading
 	UnitsByID   map[string]UnitConfig   `json:"-"`
@@ -272,6 +272,13 @@ func DefaultConfig() *GameConfig {
 		{ID: "cirith-ungol-to-mordor", From: "cirith-ungol", To: "mordor", Cost: 1},
 		{ID: "cirith-ungol-to-mount-doom", From: "cirith-ungol", To: "mount-doom", Cost: 2},
 		{ID: "mordor-to-mount-doom", From: "mordor", To: "mount-doom", Cost: 1},
+	}
+
+	cfg.CanonicalRoutes = []CanonicalRoute{
+		{ID: "fellowship", Name: "Route 1 - Fellowship", Turns: 13, Path: []string{"the-shire", "bree", "weathertop", "rivendell", "moria", "lothlorien", "emyn-muil", "ithilien", "cirith-ungol", "mount-doom"}},
+		{ID: "northern-bypass", Name: "Route 2 - Northern Bypass", Turns: 12, Path: []string{"the-shire", "bree", "rivendell", "lothlorien", "emyn-muil", "dead-marshes", "ithilien", "cirith-ungol", "mount-doom"}},
+		{ID: "dark-route", Name: "Route 3 - Dark Route", Turns: 12, Path: []string{"the-shire", "bree", "rivendell", "lothlorien", "emyn-muil", "dead-marshes", "mordor", "mount-doom"}},
+		{ID: "southern-corridor", Name: "Route 4 - Southern Corridor", Turns: 13, Path: []string{"the-shire", "tharbad", "fords-of-isen", "edoras", "minas-tirith", "osgiliath", "minas-morgul", "cirith-ungol", "mount-doom"}},
 	}
 
 	// Build indexes
