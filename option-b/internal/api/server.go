@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -408,9 +407,15 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 // ═══════════════════════════════════════════════════════
 
 func (s *Server) requestPlayerSide(r *http.Request) string {
-	side := strings.ToUpper(r.URL.Query().Get("side"))
+	side := r.URL.Query().Get("side")
 	if side == "FREE_PEOPLES" || side == "SHADOW" {
 		return side
+	}
+	if side == "free_peoples" {
+		return "FREE_PEOPLES"
+	}
+	if side == "shadow" {
+		return "SHADOW"
 	}
 	return ""
 }
@@ -427,7 +432,10 @@ func (s *Server) isRequestDarkSide(r *http.Request) bool {
 }
 
 func (s *Server) isPlayerDarkSide(playerID string) bool {
-	playerID = strings.ToLower(playerID)
 	return playerID == "dark-player" || playerID == "dark-opponent" ||
-		strings.HasPrefix(playerID, "dark-")
+		hasPrefix(playerID, "dark-")
+}
+
+func hasPrefix(value, prefix string) bool {
+	return len(value) >= len(prefix) && value[:len(prefix)] == prefix
 }
