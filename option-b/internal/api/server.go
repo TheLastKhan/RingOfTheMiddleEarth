@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/http/pprof"
 	"sync"
 	"time"
 
@@ -71,6 +72,11 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/analysis/routes", s.corsMiddleware(s.handleAnalysisRoutes))
 	mux.HandleFunc("/analysis/intercept", s.corsMiddleware(s.handleAnalysisIntercept))
 	mux.HandleFunc("/health", s.corsMiddleware(s.handleHealth))
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 
 	log.Printf("🚀 Game server starting on port %s", s.port)
 	return http.ListenAndServe(":"+s.port, mux)

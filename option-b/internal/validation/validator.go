@@ -197,8 +197,48 @@ func (v *Validator) rule3PathBlocked(order Order) ValidationResult {
 	return ValidationResult{Valid: true}
 }
 
-func (v *Validator) rule4PathInRoute(_ Order) ValidationResult {
-	// This rule checks if path is in assigned route — simplified
+func (v *Validator) rule4PathInRoute(order Order) ValidationResult {
+	if order.OrderType != "ASSIGN_ROUTE" && order.OrderType != "REDIRECT_UNIT" {
+		return ValidationResult{Valid: true}
+	}
+	pathIDs := order.PathIDs
+	if order.OrderType == "REDIRECT_UNIT" {
+		pathIDs = order.NewPathIDs
+	}
+	if len(pathIDs) == 0 {
+		return ValidationResult{Valid: true}
+	}
+
+	snap := v.cache.GetSnapshot()
+	currentRegion := ""
+	for _, u := range snap.Units {
+		if u.ID == order.UnitID {
+			currentRegion = u.CurrentRegion
+			break
+		}
+	}
+	if currentRegion == "" {
+		return ValidationResult{ErrorCode: ErrInvalidPath, ErrorMsg: "unit has no current region"}
+	}
+
+	for _, pathID := range pathIDs {
+		pathCfg, ok := v.cfg.PathsByID[pathID]
+		if !ok {
+			return ValidationResult{ErrorCode: ErrInvalidPath, ErrorMsg: fmt.Sprintf("path %s not found", pathID)}
+		}
+		if currentRegion == pathCfg.From {
+			currentRegion = pathCfg.To
+			continue
+		}
+		if currentRegion == pathCfg.To {
+			currentRegion = pathCfg.From
+			continue
+		}
+		return ValidationResult{
+			ErrorCode: ErrInvalidPath,
+			ErrorMsg:  fmt.Sprintf("path %s is not connected to current route position %s", pathID, currentRegion),
+		}
+	}
 	return ValidationResult{Valid: true}
 }
 
@@ -247,6 +287,9 @@ func (v *Validator) rule5UnitAtEndpoint(order Order) ValidationResult {
 }
 
 func (v *Validator) rule6AttackTarget(order Order) ValidationResult {
+	if order.OrderType == "DESTROY_RING" {
+		return v.validateDestroyRing(order)
+	}
 	if order.OrderType != "ATTACK_REGION" {
 		return ValidationResult{Valid: true}
 	}
@@ -258,12 +301,38 @@ func (v *Validator) rule6AttackTarget(order Order) ValidationResult {
 		}
 	}
 
-	return ValidationResult{Valid: true}
+	snap := v.cache.GetSnapshot()
+	unitRegion := ""
+	for _, u := range snap.Units {
+		if u.ID == order.UnitID {
+			unitRegion = u.CurrentRegion
+			break
+		}
+	}
+	if unitRegion == "" {
+		return ValidationResult{ErrorCode: ErrInvalidTarget, ErrorMsg: "attacking unit not found in state"}
+	}
+	if unitRegion == order.TargetRegion {
+		return ValidationResult{Valid: true}
+	}
+	for _, p := range v.cfg.Paths {
+		if (p.From == unitRegion && p.To == order.TargetRegion) || (p.To == unitRegion && p.From == order.TargetRegion) {
+			return ValidationResult{Valid: true}
+		}
+	}
+	return ValidationResult{
+		ErrorCode: ErrInvalidTarget,
+		ErrorMsg:  fmt.Sprintf("target region %s is not adjacent to %s", order.TargetRegion, unitRegion),
+	}
 }
 
 func (v *Validator) rule7MaiaCooldown(order Order) ValidationResult {
 	if order.OrderType != "MAIA_ABILITY" {
 		return ValidationResult{Valid: true}
+	}
+	unitCfg, ok := v.cfg.UnitsByID[order.UnitID]
+	if !ok || !unitCfg.Maia {
+		return ValidationResult{ErrorCode: ErrMaiaDisabled, ErrorMsg: fmt.Sprintf("unit %s is not a Maia unit", order.UnitID)}
 	}
 
 	snap := v.cache.GetSnapshot()
@@ -293,6 +362,33 @@ func (v *Validator) rule8Duplicate(order Order) ValidationResult {
 		return ValidationResult{
 			ErrorCode: ErrDuplicateUnitOrder,
 			ErrorMsg:  fmt.Sprintf("unit %s already has an order this turn", order.UnitID),
+		}
+	}
+	return ValidationResult{Valid: true}
+}
+
+func (v *Validator) validateDestroyRing(order Order) ValidationResult {
+	unitCfg, ok := v.cfg.UnitsByID[order.UnitID]
+	if !ok || unitCfg.Class != "RingBearer" {
+		return ValidationResult{ErrorCode: ErrDestroyCondition, ErrorMsg: "only the Ring Bearer can destroy the ring"}
+	}
+
+	snap := v.cache.GetSnapshot()
+	ringRegion := ""
+	for _, u := range snap.Units {
+		if u.ID == order.UnitID {
+			ringRegion = u.CurrentRegion
+			break
+		}
+	}
+	regionCfg, ok := v.cfg.RegionsByID[ringRegion]
+	if !ok || regionCfg.SpecialRole != "RING_DESTRUCTION_SITE" {
+		return ValidationResult{ErrorCode: ErrDestroyCondition, ErrorMsg: "Ring Bearer is not at Mount Doom"}
+	}
+	for _, u := range snap.Units {
+		cfg, ok := v.cfg.UnitsByID[u.ID]
+		if ok && cfg.Side == "SHADOW" && u.Status == "ACTIVE" && u.CurrentRegion == ringRegion {
+			return ValidationResult{ErrorCode: ErrDestroyCondition, ErrorMsg: "Shadow unit present at Mount Doom"}
 		}
 	}
 	return ValidationResult{Valid: true}

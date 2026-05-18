@@ -108,6 +108,11 @@ func main() {
 				if err := producer.Produce(event.Topic, event.Key, event.Data); err != nil {
 					log.Printf("Kafka event produce failed topic=%s: %v", event.Topic, err)
 				}
+				if event.Topic == "game.broadcast" && isWorldState(event.Data) {
+					if err := producer.Produce("game.session", "session", event.Data); err != nil {
+						log.Printf("Kafka session produce failed: %v", err)
+					}
+				}
 			}
 			server.ResetTurn()
 			turnTimer.Reset(turnDuration)
@@ -126,6 +131,16 @@ func main() {
 		default:
 		}
 	}
+}
+
+func isWorldState(data []byte) bool {
+	var event struct {
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(data, &event); err != nil {
+		return false
+	}
+	return event.Type == "WORLD_STATE"
 }
 
 func toGameOrder(order validation.Order) game.Order {

@@ -2,136 +2,122 @@ package rotr.streams;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-
+import java.util.HashSet;
+import java.util.Set;
 
 /**
- * Topology 2: Route Risk Enrichment (Rubric K5, 4 points)
- *
- * Enriches validated orders with a routeRiskScore field.
- * This enables Schema V2 (backward-compatible evolution: K3).
- *
- * Risk Score Formula:
- *   riskScore = sum(region.threatLevel)
- *             + sum(path.surveillanceLevel) * 3
- *             + count(BLOCKED paths) * 5
- *             + count(THREATENED paths) * 2
- *
- * The enriched order uses the V2 schema which adds the
- * nullable routeRiskScore field.
+ * Adds the V2 route analysis fields to validated route orders.
  */
 public class RouteRiskEnricher {
 
     private static final Logger log = LoggerFactory.getLogger(RouteRiskEnricher.class);
     private static final ObjectMapper mapper = new ObjectMapper();
 
-    /**
-     * Enriches a validated order with route risk score.
-     *
-     * @param orderJson     The validated order JSON
-     * @param worldStateJson The current world state from KTable
-     * @return Enriched order JSON with routeRiskScore field
-     */
     public static String enrich(String orderJson, String worldStateJson) {
         try {
             ObjectNode order = (ObjectNode) mapper.readTree(orderJson);
-
-            // Only enrich route-related orders
             String orderType = order.path("orderType").asText("");
             if (!orderType.equals("ASSIGN_ROUTE") && !orderType.equals("REDIRECT_UNIT")) {
-                // Non-route orders: set null risk score (V2 compatible)
                 order.putNull("routeRiskScore");
+                order.set("threatenedPaths", mapper.createArrayNode());
+                order.set("blockedPaths", mapper.createArrayNode());
                 return mapper.writeValueAsString(order);
             }
 
-            // Parse world state
-            int riskScore = 0;
-            if (worldStateJson != null) {
-                riskScore = calculateRiskFromState(order, worldStateJson);
-            }
-
-            // Add risk score (V2 schema field)
-            order.put("routeRiskScore", riskScore);
-
-            log.debug("📊 Route risk enriched: order={}, riskScore={}",
-                order.path("unitId").asText(), riskScore);
-
+            Risk risk = worldStateJson == null ? new Risk() : calculateRiskFromState(order, worldStateJson);
+            order.put("routeRiskScore", risk.score);
+            order.set("threatenedPaths", risk.threatenedPaths);
+            order.set("blockedPaths", risk.blockedPaths);
             return mapper.writeValueAsString(order);
-
         } catch (Exception e) {
-            log.warn("⚠️ Risk enrichment failed: {}", e.getMessage());
-            // Return original order with null risk (V2 compatible)
-            try {
-                ObjectNode order = (ObjectNode) mapper.readTree(orderJson);
-                order.putNull("routeRiskScore");
-                return mapper.writeValueAsString(order);
-            } catch (Exception ex) {
-                return orderJson;
-            }
+            log.warn("Risk enrichment failed: {}", e.getMessage());
+            return orderJson;
         }
     }
 
-    /**
-     * Calculates the risk score from the world state.
-     *
-     * riskScore =
-     *     sum(region.threatLevel for each region in route)
-     *   + sum(path.surveillanceLevel) * 3
-     *   + count(BLOCKED) * 5
-     *   + count(THREATENED) * 2
-     */
-    private static int calculateRiskFromState(ObjectNode order, String worldStateJson) {
+    private static Risk calculateRiskFromState(ObjectNode order, String worldStateJson) {
+        Risk risk = new Risk();
         try {
             JsonNode state = mapper.readTree(worldStateJson);
-            int riskScore = 0;
+            Set<String> routePaths = extractRoutePaths(order);
+            Set<String> routeRegions = new HashSet<>();
 
-            // Get regions from state
-            JsonNode regions = state.path("regions");
-            if (regions.isArray()) {
-                for (JsonNode region : regions) {
-                    int threat = region.path("threatLevel").asInt(0);
-                    riskScore += threat;
-                }
-            }
-
-            // Get paths from state (if available)
             JsonNode paths = state.path("paths");
             if (paths.isArray()) {
                 for (JsonNode path : paths) {
-                    int surveillance = path.path("surveillanceLevel").asInt(0);
-                    riskScore += surveillance * 3;
-
+                    String pathId = path.path("id").asText("");
+                    if (!routePaths.contains(pathId)) {
+                        continue;
+                    }
+                    risk.score += path.path("surveillanceLevel").asInt(0) * 3;
                     String status = path.path("status").asText("OPEN");
                     if ("BLOCKED".equals(status)) {
-                        riskScore += 5;
+                        risk.score += 5;
+                        risk.blockedPaths.add(pathId);
                     } else if ("THREATENED".equals(status)) {
-                        riskScore += 2;
+                        risk.score += 2;
+                        risk.threatenedPaths.add(pathId);
+                    }
+                    addIfPresent(routeRegions, path.path("from").asText(""));
+                    addIfPresent(routeRegions, path.path("to").asText(""));
+                }
+            }
+
+            JsonNode regions = state.path("regions");
+            if (regions.isArray()) {
+                for (JsonNode region : regions) {
+                    String regionId = region.path("id").asText("");
+                    if (routeRegions.isEmpty() || routeRegions.contains(regionId)) {
+                        risk.score += region.path("threatLevel").asInt(0);
                     }
                 }
             }
 
-            // Check for nearby Nazgul (simplified: count active SHADOW units)
             JsonNode units = state.path("units");
             if (units.isArray()) {
                 for (JsonNode unit : units) {
                     String status = unit.path("status").asText("");
                     String id = unit.path("id").asText("");
-                    // Count active Nazgul as risk factor
-                    if ("ACTIVE".equals(status) &&
-                        (id.contains("nazgul") || id.equals("witch-king"))) {
-                        riskScore += 2;
+                    if ("ACTIVE".equals(status) && (id.contains("nazgul") || id.equals("witch-king"))) {
+                        risk.score += 2;
                     }
                 }
             }
-
-            return riskScore;
-
         } catch (Exception e) {
-            log.warn("⚠️ Risk calculation failed: {}", e.getMessage());
-            return 0;
+            log.warn("Risk calculation failed: {}", e.getMessage());
         }
+        return risk;
+    }
+
+    private static Set<String> extractRoutePaths(ObjectNode order) {
+        Set<String> paths = new HashSet<>();
+        JsonNode pathIds = order.path("pathIds");
+        if (!pathIds.isArray()) {
+            pathIds = order.path("newPathIds");
+        }
+        if (pathIds.isArray()) {
+            for (JsonNode node : pathIds) {
+                addIfPresent(paths, node.asText(""));
+            }
+        }
+        addIfPresent(paths, order.path("pathId").asText(""));
+        return paths;
+    }
+
+    private static void addIfPresent(Set<String> values, String value) {
+        if (value != null && !value.isBlank()) {
+            values.add(value);
+        }
+    }
+
+    private static class Risk {
+        int score = 0;
+        ArrayNode threatenedPaths = mapper.createArrayNode();
+        ArrayNode blockedPaths = mapper.createArrayNode();
     }
 }

@@ -90,6 +90,8 @@ func partitionFor(topic string) int32 {
 		return 2
 	case "game.orders.validated", "game.events.path", "game.broadcast", "game.ring.position", "game.ring.detection":
 		return 0
+	case "game.session":
+		return 0
 	case "game.events.unit", "game.events.region":
 		return 1
 	default:

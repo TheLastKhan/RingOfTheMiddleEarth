@@ -129,8 +129,8 @@ Test files:
 |---------|------|-------------|
 | nginx | 80 | Load balancer → 3 Go instances |
 | go-1 | 8080 | Go game engine instance 1 |
-| go-2 | 8081 | Go game engine instance 2 |
-| go-3 | 8082 | Go game engine instance 3 |
+| go-2 | 8082 | Go game engine instance 2 |
+| go-3 | 8083 | Go game engine instance 3 |
 | kafka-1 | 29092 | Kafka broker 1 |
 | kafka-2 | 29093 | Kafka broker 2 |
 | kafka-3 | 29094 | Kafka broker 3 |
@@ -240,7 +240,7 @@ make check-game-over
 
 ```bash
 # After 10 turns, check goroutine count
-curl -s localhost:6060/debug/pprof/goroutine?debug=1 | head -5
+curl -s localhost/debug/pprof/goroutine?debug=1 | head -5
 
 # Count should remain stable — no growth over time
 ```
@@ -279,11 +279,11 @@ All unit behaviour is config-driven. `cfg.DetectionRange > 0` identifies Nazgul.
 **Single information asymmetry enforcement point.**  
 `EventRouter.route()` in `internal/router/event_router.go` is the only place routing decisions are made. Verified with `go test -race ./internal/router/...`.
 
-**Stateless application tier.**  
-All authoritative state lives in Kafka KTables. Any Go instance can handle any request. Fault tolerance is delegated to Kafka consumer group protocol.
+**Kafka-backed application tier.**
+Go instances are interchangeable behind nginx, orders/events are written to Kafka, and the latest world snapshot is also written to the compacted `game.session` topic. The in-process cache is still used for fast HTTP/SSE serving, so full production replay from Kafka is a hardening item rather than something to overclaim in the demo.
 
 **Exactly-once GameOver.**  
-`enable.idempotence=true` on the producer. Verified with `make check-game-over` after engine crash + restart.
+GameOver emission has an application-level duplicate guard and is covered by unit tests. A fully transactional/idempotent Kafka producer crash proof is documented as remaining production hardening in `architecture-document.md`.
 
 ---
 
@@ -291,4 +291,4 @@ All authoritative state lives in Kafka KTables. Any Go instance can handle any r
 
 AI tools were used to understand concepts (Kafka KTable semantics, Go pipeline patterns, Docker Compose healthcheck syntax). All game logic — combat formula, detection formula, 13-step turn processing, information asymmetry enforcement, state machine transitions — was written directly from the project specification.
 
-See `architecture-document.pdf` for the full LLM usage log.
+See `architecture-document.md` for the full architecture notes and LLM usage log.

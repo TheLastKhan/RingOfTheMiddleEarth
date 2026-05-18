@@ -9,6 +9,8 @@
     {"name": "payload",        "type": "bytes"},
     {"name": "turn",           "type": "int"},
     {"name": "timestamp",      "type": "long"},
-    {"name": "routeRiskScore", "type": ["null", "int"], "default": null}
+    {"name": "routeRiskScore", "type": ["null", "int"], "default": null},
+    {"name": "threatenedPaths", "type": {"type": "array", "items": "string"}, "default": []},
+    {"name": "blockedPaths", "type": {"type": "array", "items": "string"}, "default": []}
   ]
 }

@@ -28,14 +28,14 @@ type WorldStateCache struct {
 
 // UnitSnapshot is the current state of a unit.
 type UnitSnapshot struct {
-	ID            string `json:"id"`
-	CurrentRegion string `json:"currentRegion"`
-	Strength      int    `json:"strength"`
-	Status        string `json:"status"` // ACTIVE | DESTROYED | RESPAWNING
-	RespawnTurns  int    `json:"respawnTurns"`
-	Cooldown      int    `json:"cooldown"`
+	ID            string   `json:"id"`
+	CurrentRegion string   `json:"currentRegion"`
+	Strength      int      `json:"strength"`
+	Status        string   `json:"status"` // ACTIVE | DESTROYED | RESPAWNING
+	RespawnTurns  int      `json:"respawnTurns"`
+	Cooldown      int      `json:"cooldown"`
 	Route         []string `json:"route,omitempty"`
-	RouteIdx      int    `json:"routeIdx"`
+	RouteIdx      int      `json:"routeIdx"`
 }
 
 // RegionSnapshot is the current state of a region.
@@ -50,10 +50,13 @@ type RegionSnapshot struct {
 // PathSnapshot is the current state of a path.
 type PathSnapshot struct {
 	ID                string `json:"id"`
+	From              string `json:"from,omitempty"`
+	To                string `json:"to,omitempty"`
 	Status            string `json:"status"` // OPEN | BLOCKED | THREATENED | TEMPORARILY_OPEN
 	SurveillanceLevel int    `json:"surveillanceLevel"`
 	TempOpenTurns     int    `json:"tempOpenTurns"`
 	BlockedBy         string `json:"blockedBy,omitempty"`
+	Corrupted         bool   `json:"corrupted,omitempty"`
 }
 
 // LightSideView holds Light Side-specific data.
@@ -66,7 +69,7 @@ type LightSideView struct {
 // DarkSideView holds Dark Side-specific data.
 // CRITICAL: RingBearerRegion is ALWAYS "" — no code path ever sets this.
 type DarkSideView struct {
-	RingBearerRegion   string `json:"ringBearerRegion"`   // ALWAYS ""
+	RingBearerRegion   string `json:"ringBearerRegion"` // ALWAYS ""
 	LastDetectedRegion string `json:"lastDetectedRegion"`
 	LastDetectedTurn   int    `json:"lastDetectedTurn"`
 }
@@ -108,6 +111,8 @@ func NewWorldStateCache(cfg *config.GameConfig) *WorldStateCache {
 	for _, p := range cfg.Paths {
 		c.Paths[p.ID] = PathSnapshot{
 			ID:     p.ID,
+			From:   p.From,
+			To:     p.To,
 			Status: "OPEN",
 		}
 	}

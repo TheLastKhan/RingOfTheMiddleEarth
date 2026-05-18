@@ -16,15 +16,16 @@ import (
 
 // TurnState holds mutable game state for one turn of processing.
 type TurnState struct {
-	Turn      int
-	Units     map[string]*UnitRuntime
-	Regions   map[string]*RegionRuntime
-	Paths     map[string]*PathRuntime
-	LightView *LightView
-	DarkView  *DarkViewData
-	Config    *config.GameConfig
-	Graph     *GameGraph
-	GameOver  bool
+	Turn          int
+	Units         map[string]*UnitRuntime
+	Regions       map[string]*RegionRuntime
+	Paths         map[string]*PathRuntime
+	LightView     *LightView
+	DarkView      *DarkViewData
+	Config        *config.GameConfig
+	Graph         *GameGraph
+	GameOver      bool
+	CurrentOrders []Order
 }
 
 // UnitRuntime is the mutable runtime state of a unit during turn processing.
@@ -52,10 +53,13 @@ type RegionRuntime struct {
 // PathRuntime is the mutable runtime state of a path.
 type PathRuntime struct {
 	ID                string `json:"id"`
+	From              string `json:"from"`
+	To                string `json:"to"`
 	Status            string `json:"status"` // OPEN | BLOCKED | THREATENED | TEMPORARILY_OPEN
 	SurveillanceLevel int    `json:"surveillanceLevel"`
 	TempOpenTurns     int    `json:"tempOpenTurns"`
 	BlockedBy         string `json:"blockedBy"`
+	Corrupted         bool   `json:"corrupted"`
 }
 
 // LightView holds Light Side view of the Ring Bearer.
@@ -115,6 +119,8 @@ func (tp *TurnProcessor) ProcessTurn(state *TurnState, orders []Order) []GameEve
 
 	// Step 1: Collect and validate orders
 	validOrders := tp.step1CollectOrders(state, orders)
+	state.CurrentOrders = validOrders
+	defer func() { state.CurrentOrders = nil }()
 
 	// Step 2: Process route assignments
 	events = append(events, tp.step2ProcessRoutes(state, validOrders)...)
@@ -287,13 +293,16 @@ func (tp *TurnProcessor) step6ProcessMaiaAbilities(state *TurnState, orders []Or
 			continue // on cooldown
 		}
 
-		// Saruman: corrupt path (block permanently)
+		targetPath := order.TargetPathID
+		if targetPath == "" {
+			targetPath = order.PathID
+		}
+		if targetPath == "" && len(order.PathIDs) > 0 {
+			targetPath = order.PathIDs[0]
+		}
+
+		// Saruman: corrupt configured paths permanently.
 		if len(unit.Config.MaiaAbilityPaths) > 0 {
-			targetPath := order.TargetPathID
-			if targetPath == "" && len(order.PathIDs) > 0 {
-				targetPath = order.PathIDs[0]
-			}
-			// Verify target is in allowed paths
 			allowed := false
 			for _, p := range unit.Config.MaiaAbilityPaths {
 				if p == targetPath {
@@ -305,6 +314,8 @@ func (tp *TurnProcessor) step6ProcessMaiaAbilities(state *TurnState, orders []Or
 				if path, ok := state.Paths[targetPath]; ok {
 					path.Status = "BLOCKED"
 					path.SurveillanceLevel = 5
+					path.BlockedBy = unit.ID
+					path.Corrupted = true
 					events = append(events, makeEvent("game.events.path", targetPath, map[string]interface{}{
 						"pathId":    targetPath,
 						"newStatus": "BLOCKED",
@@ -312,6 +323,18 @@ func (tp *TurnProcessor) step6ProcessMaiaAbilities(state *TurnState, orders []Or
 						"turn":      state.Turn,
 					}))
 				}
+			}
+		} else if targetPath != "" && tp.graph.IsEndpointOf(unit.CurrentRegion, targetPath) {
+			// Gandalf: temporarily opens a blocked path from either endpoint.
+			if path, ok := state.Paths[targetPath]; ok && path.Status == "BLOCKED" {
+				path.Status = "TEMPORARILY_OPEN"
+				path.TempOpenTurns = 2
+				events = append(events, makeEvent("game.events.path", targetPath, map[string]interface{}{
+					"pathId":    targetPath,
+					"newStatus": "TEMPORARILY_OPEN",
+					"type":      "REOPENED_BY_MAIA",
+					"turn":      state.Turn,
+				}))
 			}
 		}
 
@@ -471,6 +494,18 @@ func (tp *TurnProcessor) step8ResolveCombat(state *TurnState) []GameEvent {
 func (tp *TurnProcessor) step9UpdatePathTimers(state *TurnState) []GameEvent {
 	var events []GameEvent
 	for _, path := range state.Paths {
+		if path.Status == "BLOCKED" && path.BlockedBy != "" && !path.Corrupted {
+			blocker, ok := state.Units[path.BlockedBy]
+			if !ok || blocker.Status != "ACTIVE" || !tp.graph.IsEndpointOf(blocker.CurrentRegion, path.ID) {
+				path.Status = "OPEN"
+				path.BlockedBy = ""
+				events = append(events, makeEvent("game.events.path", path.ID, map[string]interface{}{
+					"pathId":    path.ID,
+					"newStatus": "OPEN",
+					"turn":      state.Turn,
+				}))
+			}
+		}
 		if path.Status == "TEMPORARILY_OPEN" {
 			path.TempOpenTurns--
 			if path.TempOpenTurns <= 0 {
@@ -565,11 +600,18 @@ func (tp *TurnProcessor) step12Detection(state *TurnState) []GameEvent {
 func (tp *TurnProcessor) step13CheckWinConditions(state *TurnState) []GameEvent {
 	var events []GameEvent
 
-	// Win 1: Ring Bearer reaches Mount Doom
+	// Win 1: Ring Bearer destroys the ring at Mount Doom with no Shadow unit present.
+	destroySubmitted := false
+	for _, order := range state.CurrentOrders {
+		if order.OrderType == "DESTROY_RING" {
+			destroySubmitted = true
+			break
+		}
+	}
 	for _, unit := range state.Units {
 		if unit.Config.Class == "RingBearer" && unit.Status == "ACTIVE" {
 			regionCfg := tp.cfg.RegionsByID[unit.CurrentRegion]
-			if regionCfg.SpecialRole == "RING_DESTRUCTION_SITE" {
+			if destroySubmitted && regionCfg.SpecialRole == "RING_DESTRUCTION_SITE" && !hasActiveShadowUnit(state, unit.CurrentRegion) {
 				state.GameOver = true
 				events = append(events, makeEvent("game.broadcast", "", map[string]interface{}{
 					"type":   "GAME_OVER",
@@ -650,6 +692,15 @@ func makeEvent(topic, key string, data interface{}) GameEvent {
 	}
 }
 
+func hasActiveShadowUnit(state *TurnState, regionID string) bool {
+	for _, unit := range state.Units {
+		if unit.Status == "ACTIVE" && unit.CurrentRegion == regionID && unit.Config.Side == "SHADOW" {
+			return true
+		}
+	}
+	return false
+}
+
 // InitTurnState creates the initial turn state from configuration.
 func InitTurnState(cfg *config.GameConfig, graph *GameGraph) *TurnState {
 	state := &TurnState{
@@ -687,6 +738,8 @@ func InitTurnState(cfg *config.GameConfig, graph *GameGraph) *TurnState {
 	for _, p := range cfg.Paths {
 		state.Paths[p.ID] = &PathRuntime{
 			ID:     p.ID,
+			From:   p.From,
+			To:     p.To,
 			Status: "OPEN",
 		}
 	}

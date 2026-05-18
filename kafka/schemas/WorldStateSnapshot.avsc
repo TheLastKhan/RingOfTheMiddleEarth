@@ -3,10 +3,11 @@
   "name": "WorldStateSnapshot",
   "namespace": "rotr.avro",
   "fields": [
+    {"name": "type", "type": "string", "default": "WORLD_STATE"},
     {"name": "turn", "type": "int"},
     {
       "name": "regions",
-      "type": {
+      "type": ["null", {
         "type": "array",
         "items": {
           "type": "record",
@@ -19,11 +20,12 @@
             {"name": "fortifyTurns", "type": "int"}
           ]
         }
-      }
+      }],
+      "default": null
     },
     {
       "name": "units",
-      "type": {
+      "type": ["null", {
         "type": "array",
         "items": {
           "type": "record",
@@ -37,8 +39,32 @@
             {"name": "cooldown",      "type": "int"}
           ]
         }
-      }
+      }],
+      "default": null
     },
+    {
+      "name": "paths",
+      "type": ["null", {
+        "type": "array",
+        "items": {
+          "type": "record",
+          "name": "PathSnapshot",
+          "fields": [
+            {"name": "id", "type": "string"},
+            {"name": "from", "type": "string", "default": ""},
+            {"name": "to", "type": "string", "default": ""},
+            {"name": "status", "type": "string"},
+            {"name": "surveillanceLevel", "type": "int"},
+            {"name": "tempOpenTurns", "type": "int"},
+            {"name": "blockedBy", "type": "string", "default": ""},
+            {"name": "corrupted", "type": "boolean", "default": false}
+          ]
+        }
+      }],
+      "default": null
+    },
+    {"name": "winner", "type": ["null", "string"], "default": null},
+    {"name": "cause", "type": ["null", "string"], "default": null},
     {"name": "timestamp", "type": "long"}
   ]
 }

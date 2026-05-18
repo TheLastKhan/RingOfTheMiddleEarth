@@ -51,6 +51,7 @@ public class StreamsApp {
         props.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.StringSerde.class);
         props.put(StreamsConfig.DEFAULT_TIMESTAMP_EXTRACTOR_CLASS_CONFIG,
                 WallclockTimestampExtractor.class);
+        props.put("rack.aware.assignment.strategy", "none");
         // Exactly-once semantics
         props.put(StreamsConfig.PROCESSING_GUARANTEE_CONFIG, StreamsConfig.EXACTLY_ONCE_V2);
 
@@ -102,9 +103,6 @@ public class StreamsApp {
         KStream<String, String> validOrders   = splitOrders.get("order-valid");
         KStream<String, String> invalidOrders = splitOrders.get("order-invalid");
 
-        // Valid → game.orders.validated
-        validOrders.to(ORDERS_VALIDATED);
-
         // Invalid → game.dlq with error enrichment
         invalidOrders
             .mapValues(value -> OrderValidator.enrichDLQ(value))
@@ -119,11 +117,8 @@ public class StreamsApp {
         // Build KTable from broadcast topic (world state)
         KTable<String, String> worldState = builder.table(BROADCAST);
 
-        // Read validated orders
-        KStream<String, String> validated = builder.stream(ORDERS_VALIDATED);
-
-        // Left-join with world state to enrich
-        KStream<String, String> enriched = validated.leftJoin(
+        // Left-join raw valid orders with world state and emit one enriched record.
+        KStream<String, String> enriched = validOrders.leftJoin(
             worldState,
             (orderJson, stateJson) -> RouteRiskEnricher.enrich(orderJson, stateJson)
         );

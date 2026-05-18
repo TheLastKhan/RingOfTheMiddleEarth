@@ -20,9 +20,9 @@ import (
 
 // RouteRiskInput contains the data needed to score a route.
 type RouteRiskInput struct {
-	RouteID    string
-	PathIDs    []string
-	RegionIDs  []string
+	RouteID   string
+	PathIDs   []string
+	RegionIDs []string
 }
 
 // RouteRiskResult is the score for a single route.
@@ -42,10 +42,10 @@ type RankedRouteList struct {
 
 // RouteRiskState holds the world state snapshot needed for risk calculation.
 type RouteRiskState struct {
-	Regions    map[string]RegionSnapshot
-	Paths      map[string]PathSnapshot
+	Regions     map[string]RegionSnapshot
+	Paths       map[string]PathSnapshot
 	NazgulUnits []UnitSnapshot
-	Graph      *game.GameGraph
+	Graph       *game.GameGraph
 }
 
 // RegionSnapshot is a snapshot of a region's state.
@@ -79,8 +79,8 @@ func ComputeRouteRisk(ctx context.Context, routes []RouteRiskInput, state RouteR
 	defer cancel()
 
 	numWorkers := 4
-	inputCh := make(chan RouteRiskInput, 20)     // buffered cap 20
-	resultCh := make(chan RouteRiskResult)        // unbuffered
+	inputCh := make(chan RouteRiskInput, 20) // buffered cap 20
+	resultCh := make(chan RouteRiskResult)   // unbuffered
 
 	// ── Fan-out: dispatch routes to workers ──
 	go func() {
@@ -134,7 +134,8 @@ func ComputeRouteRisk(ctx context.Context, routes []RouteRiskInput, state RouteR
 	})
 
 	ranked := RankedRouteList{
-		Routes: results,
+		Routes:   results,
+		Warnings: []string{},
 	}
 	if len(results) > 0 {
 		ranked.Recommended = results[0].RouteID
@@ -153,13 +154,18 @@ func ComputeRouteRisk(ctx context.Context, routes []RouteRiskInput, state RouteR
 // computeSingleRouteRisk computes the risk score for one route.
 //
 // riskScore =
-//     sum(region.threatLevel for each destination region)
-//   + sum(path.surveillanceLevel for each path) * 3
-//   + count(BLOCKED paths) * 5
-//   + count(THREATENED paths) * 2
-//   + nazgulProximityCount * 2
+//
+//	  sum(region.threatLevel for each destination region)
+//	+ sum(path.surveillanceLevel for each path) * 3
+//	+ count(BLOCKED paths) * 5
+//	+ count(THREATENED paths) * 2
+//	+ nazgulProximityCount * 2
 func computeSingleRouteRisk(route RouteRiskInput, state RouteRiskState) RouteRiskResult {
-	result := RouteRiskResult{RouteID: route.RouteID}
+	result := RouteRiskResult{
+		RouteID:         route.RouteID,
+		ThreatenedPaths: []string{},
+		BlockedPaths:    []string{},
+	}
 
 	// Sum region threat levels
 	for _, regionID := range route.RegionIDs {
@@ -236,8 +242,8 @@ func ComputeInterception(ctx context.Context, inputs []InterceptInput, graph *ga
 	defer cancel()
 
 	numWorkers := 4
-	inputCh := make(chan InterceptInput, 30)    // buffered cap 30
-	resultCh := make(chan InterceptResult)       // unbuffered
+	inputCh := make(chan InterceptInput, 30) // buffered cap 30
+	resultCh := make(chan InterceptResult)   // unbuffered
 
 	// ── Fan-out ──
 	go func() {
@@ -297,11 +303,11 @@ func ComputeInterception(ctx context.Context, inputs []InterceptInput, graph *ga
 
 // computeSingleIntercept scores one (Nazgul, route) pair.
 //
-//   turnsToIntercept = graph.shortestPath(nazgul.region, routeRegion) [in hops]
-//   rbTurnsToReach   = sum of traversal costs to that region
-//   interceptWindow  = rbTurnsToReach - turnsToIntercept
-//   score = interceptWindow >= 0 ?
-//           1.0 - (turnsToIntercept / routeLength) : 0.0
+//	turnsToIntercept = graph.shortestPath(nazgul.region, routeRegion) [in hops]
+//	rbTurnsToReach   = sum of traversal costs to that region
+//	interceptWindow  = rbTurnsToReach - turnsToIntercept
+//	score = interceptWindow >= 0 ?
+//	        1.0 - (turnsToIntercept / routeLength) : 0.0
 func computeSingleIntercept(input InterceptInput, graph *game.GameGraph) InterceptResult {
 	bestScore := 0.0
 	bestRegion := ""
