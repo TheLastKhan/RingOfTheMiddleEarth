@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -119,12 +120,10 @@ func (s *Server) handleGameStart(w http.ResponseWriter, r *http.Request) {
 
 // GET /game/state — World state (Ring Bearer stripped for Dark Side)
 func (s *Server) handleGameState(w http.ResponseWriter, r *http.Request) {
-	playerID := r.URL.Query().Get("playerId")
-
 	w.Header().Set("Content-Type", "application/json")
 
 	// Determine player side
-	isDarkSide := s.isPlayerDarkSide(playerID)
+	isDarkSide := s.isRequestDarkSide(r)
 
 	if isDarkSide {
 		w.Write(s.cache.GetDarkState())
@@ -177,7 +176,6 @@ func (s *Server) handleOrder(w http.ResponseWriter, r *http.Request) {
 // GET /orders/available — Available orders for a unit
 func (s *Server) handleAvailableOrders(w http.ResponseWriter, r *http.Request) {
 	unitID := r.URL.Query().Get("unitId")
-	playerID := r.URL.Query().Get("playerId")
 
 	unitCfg, ok := s.cfg.UnitsByID[unitID]
 	if !ok {
@@ -220,7 +218,10 @@ func (s *Server) handleAvailableOrders(w http.ResponseWriter, r *http.Request) {
 		available = append(available, "DESTROY_RING")
 	}
 
-	_ = playerID // Used for side filtering if needed
+	playerSide := s.requestPlayerSide(r)
+	if playerSide != "" && unitCfg.Side != playerSide {
+		available = []string{}
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -261,7 +262,7 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 	log.Printf("📡 SSE connected: %s", playerID)
 
 	// Determine which router channel to listen to
-	isDarkSide := s.isPlayerDarkSide(playerID)
+	isDarkSide := s.isRequestDarkSide(r)
 
 	ctx := r.Context()
 	heartbeat := time.NewTicker(25 * time.Second)
@@ -406,8 +407,27 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 // HELPERS
 // ═══════════════════════════════════════════════════════
 
+func (s *Server) requestPlayerSide(r *http.Request) string {
+	side := strings.ToUpper(r.URL.Query().Get("side"))
+	if side == "FREE_PEOPLES" || side == "SHADOW" {
+		return side
+	}
+	return ""
+}
+
+func (s *Server) isRequestDarkSide(r *http.Request) bool {
+	switch s.requestPlayerSide(r) {
+	case "SHADOW":
+		return true
+	case "FREE_PEOPLES":
+		return false
+	default:
+		return s.isPlayerDarkSide(r.URL.Query().Get("playerId"))
+	}
+}
+
 func (s *Server) isPlayerDarkSide(playerID string) bool {
-	// Convention: player IDs containing "dark" are Dark Side
+	playerID = strings.ToLower(playerID)
 	return playerID == "dark-player" || playerID == "dark-opponent" ||
-		len(playerID) > 0 && playerID[0] == 'd'
+		strings.HasPrefix(playerID, "dark-")
 }

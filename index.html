@@ -868,7 +868,7 @@ async function joinGame() {
 // SSE
 // ══════════════════════════════════════════════════════════
 function connectSSE() {
-  const url = `${State.serverURL}/events?playerId=${State.playerId}`;
+  const url = `${State.serverURL}/events?playerId=${encodeURIComponent(State.playerId)}&side=${encodeURIComponent(State.side)}`;
   State.sse = new EventSource(url);
 
   State.sse.onopen = () => {
@@ -931,7 +931,7 @@ function connectSSE() {
 async function fetchState() {
   try {
     const res = await fetch(
-      `${State.serverURL}/game/state?playerId=${State.playerId}`
+      `${State.serverURL}/game/state?playerId=${encodeURIComponent(State.playerId)}&side=${encodeURIComponent(State.side)}`
     );
     const data = await res.json();
     handleWorldState(data);
@@ -1067,7 +1067,7 @@ async function renderOrderButtons(unitId) {
   let available = [];
   try {
     const res = await fetch(
-      `${State.serverURL}/orders/available?unitId=${unitId}&playerId=${State.playerId}`
+      `${State.serverURL}/orders/available?unitId=${encodeURIComponent(unitId)}&playerId=${encodeURIComponent(State.playerId)}&side=${encodeURIComponent(State.side)}`
     );
     const data = await res.json();
     available = data.availableOrders || [];
@@ -1176,6 +1176,7 @@ async function submitOrder() {
   const body = {
     orderType: State.selectedOrder,
     playerId:  State.playerId,
+    playerSide: State.side,
     unitId:    State.selectedUnit.id,
     turn:      State.currentTurn,
     payload:   State.orderPayload,
@@ -1625,7 +1626,7 @@ async function fetchAnalysis() {
     : '/analysis/intercept';
 
   try {
-    const res  = await fetch(`${State.serverURL}${endpoint}?playerId=${State.playerId}`);
+    const res  = await fetch(`${State.serverURL}${endpoint}?playerId=${encodeURIComponent(State.playerId)}&side=${encodeURIComponent(State.side)}`);
     const data = await res.json();
 
     if (State.side === 'FREE_PEOPLES' && data.routes) {

@@ -17,6 +17,7 @@ import (
 type Order struct {
 	OrderType    string                 `json:"orderType"`
 	PlayerID     string                 `json:"playerId"`
+	PlayerSide   string                 `json:"playerSide,omitempty"`
 	UnitID       string                 `json:"unitId"`
 	Turn         int                    `json:"turn"`
 	Payload      map[string]interface{} `json:"payload,omitempty"`
@@ -54,8 +55,8 @@ const (
 
 // Validator validates orders against the 8 rules.
 type Validator struct {
-	cfg         *config.GameConfig
-	cache       *cache.WorldStateCache
+	cfg               *config.GameConfig
+	cache             *cache.WorldStateCache
 	processedThisTurn map[string]bool // unitID → already has order this turn
 }
 
@@ -146,12 +147,15 @@ func (v *Validator) rule2UnitOwnership(order Order) ValidationResult {
 		}
 	}
 
-	// Determine player's side from playerId convention
-	playerSide := "FREE_PEOPLES"
-	if order.PlayerID == "dark-player" || order.PlayerID == "dark-opponent" {
-		playerSide = "SHADOW"
+	playerSide := order.PlayerSide
+	if playerSide != "FREE_PEOPLES" && playerSide != "SHADOW" {
+		// Backward compatibility for older clients that only send playerId.
+		playerSide = "FREE_PEOPLES"
+		if order.PlayerID == "dark-player" || order.PlayerID == "dark-opponent" {
+			playerSide = "SHADOW"
+		}
 	}
-	// More robust: check if the order's player matches any unit on that side
+
 	if unitCfg.Side != playerSide {
 		return ValidationResult{
 			ErrorCode: ErrNotYourUnit,
