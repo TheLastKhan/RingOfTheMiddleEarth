@@ -24,6 +24,7 @@ type TurnState struct {
 	DarkView  *DarkViewData
 	Config    *config.GameConfig
 	Graph     *GameGraph
+	GameOver  bool
 }
 
 // UnitRuntime is the mutable runtime state of a unit during turn processing.
@@ -106,6 +107,10 @@ func NewTurnProcessor(cfg *config.GameConfig, graph *GameGraph) *TurnProcessor {
 func (tp *TurnProcessor) ProcessTurn(state *TurnState, orders []Order) []GameEvent {
 	var events []GameEvent
 
+	if state.GameOver {
+		return events
+	}
+
 	log.Printf("⚙️  Processing turn %d with %d orders", state.Turn, len(orders))
 
 	// Step 1: Collect and validate orders
@@ -146,6 +151,9 @@ func (tp *TurnProcessor) ProcessTurn(state *TurnState, orders []Order) []GameEve
 
 	// Step 13: Check win conditions
 	events = append(events, tp.step13CheckWinConditions(state)...)
+	if state.GameOver {
+		return events
+	}
 
 	state.Turn++
 
@@ -562,6 +570,7 @@ func (tp *TurnProcessor) step13CheckWinConditions(state *TurnState) []GameEvent 
 		if unit.Config.Class == "RingBearer" && unit.Status == "ACTIVE" {
 			regionCfg := tp.cfg.RegionsByID[unit.CurrentRegion]
 			if regionCfg.SpecialRole == "RING_DESTRUCTION_SITE" {
+				state.GameOver = true
 				events = append(events, makeEvent("game.broadcast", "", map[string]interface{}{
 					"type":   "GAME_OVER",
 					"winner": "FREE_PEOPLES",
@@ -576,6 +585,7 @@ func (tp *TurnProcessor) step13CheckWinConditions(state *TurnState) []GameEvent 
 	// Win 2: Ring Bearer destroyed
 	for _, unit := range state.Units {
 		if unit.Config.Class == "RingBearer" && unit.Status == "DESTROYED" {
+			state.GameOver = true
 			events = append(events, makeEvent("game.broadcast", "", map[string]interface{}{
 				"type":   "GAME_OVER",
 				"winner": "SHADOW",
@@ -588,6 +598,7 @@ func (tp *TurnProcessor) step13CheckWinConditions(state *TurnState) []GameEvent 
 
 	// Win 3: Max turns exceeded → Shadow wins
 	if state.Turn >= tp.cfg.MaxTurns {
+		state.GameOver = true
 		events = append(events, makeEvent("game.broadcast", "", map[string]interface{}{
 			"type":   "GAME_OVER",
 			"winner": "SHADOW",
