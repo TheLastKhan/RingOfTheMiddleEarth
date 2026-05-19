@@ -728,6 +728,7 @@ const State = {
   nextTurnAt:   null,
   countdownId:  null,
   lastSeenTurn: null,
+  processingPollId: null,
 };
 
 // ══════════════════════════════════════════════════════════
@@ -964,13 +965,19 @@ function handleWorldState(data) {
   if (data.maxTurns) State.maxTurns = data.maxTurns;
 
   if (data.turn !== undefined && data.turn !== null) {
-    if (State.lastSeenTurn !== null && data.turn !== State.lastSeenTurn) {
+    const previousTurn = State.lastSeenTurn;
+    const turnChanged = previousTurn === null || data.turn !== previousTurn;
+
+    if (previousTurn !== null && data.turn !== previousTurn) {
       logEvent('TurnProcessed', `Turn ${State.lastSeenTurn} resolved. Now playing turn ${data.turn}.`, '');
     }
     State.currentTurn = data.turn;
     State.lastSeenTurn = data.turn;
     document.getElementById('turn-number').textContent = data.turn;
-    startTurnCountdown();
+    if (turnChanged) {
+      stopProcessingPoll();
+      startTurnCountdown();
+    }
   }
 
   if (data.units)   State.units   = data.units;
@@ -1011,7 +1018,19 @@ function updateTurnCountdown() {
   el.textContent = `${remaining}s`;
   if (remaining === 0) {
     el.textContent = 'processing...';
+    startProcessingPoll();
   }
+}
+
+function startProcessingPoll() {
+  if (State.processingPollId) return;
+  State.processingPollId = setInterval(fetchState, 2000);
+}
+
+function stopProcessingPoll() {
+  if (!State.processingPollId) return;
+  clearInterval(State.processingPollId);
+  State.processingPollId = null;
 }
 
 // ══════════════════════════════════════════════════════════
