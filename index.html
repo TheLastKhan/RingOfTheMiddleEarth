@@ -1395,7 +1395,7 @@ function renderMap() {
       (u.currentRegion || u.region) === id
     );
     if (unitsHere.length > 0) {
-      drawUnitCountBadge(ctx, x + radius - 1, y + radius - 1, unitsHere.length);
+      drawUnitBadges(ctx, x + radius + 6, y - radius - 8, unitsHere);
     }
   });
 
@@ -1559,22 +1559,85 @@ function drawTerrainIconOnNode(ctx, x, y, terrain) {
   ctx.restore();
 }
 
-function drawUnitCountBadge(ctx, x, y, count) {
+function drawUnitBadges(ctx, x, y, units) {
+  const visibleUnits = units
+    .filter(u => (u.status || 'ACTIVE') !== 'DESTROYED')
+    .slice()
+    .sort((a, b) => unitSide(a.id).localeCompare(unitSide(b.id)) || unitInitials(a.id).localeCompare(unitInitials(b.id)));
+  const maxBadges = 4;
+  visibleUnits.slice(0, maxBadges).forEach((unit, idx) => {
+    drawUnitBadge(ctx, x, y + idx * 22, unit);
+  });
+  if (visibleUnits.length > maxBadges) {
+    drawOverflowBadge(ctx, x, y + maxBadges * 22, visibleUnits.length - maxBadges);
+  }
+}
+
+function drawUnitBadge(ctx, x, y, unit) {
+  const side = unitSide(unit.id);
+  const selected = State.selectedUnit?.id === unit.id;
+  const label = `${side === 'LIGHT' ? 'L' : 'S'} ${unitInitials(unit.id)}`;
+  ctx.font = 'bold 10px Segoe UI, sans-serif';
+  const width = Math.max(44, ctx.measureText(label).width + 16);
+
   ctx.save();
-  ctx.beginPath();
-  ctx.arc(x, y, 12, 0, Math.PI * 2);
+  roundedRect(ctx, x, y, width, 18, 5);
+  ctx.fillStyle = side === 'LIGHT' ? 'rgba(74,144,217,0.92)' : 'rgba(192,57,43,0.92)';
+  ctx.fill();
+  ctx.strokeStyle = selected ? '#ffdd59' : '#ffffff';
+  ctx.lineWidth = selected ? 3 : 1.5;
+  ctx.stroke();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 10px Segoe UI, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, x + width / 2, y + 9);
+  ctx.restore();
+}
+
+function drawOverflowBadge(ctx, x, y, count) {
+  ctx.save();
+  roundedRect(ctx, x, y, 36, 18, 5);
   ctx.fillStyle = '#ffffff';
   ctx.fill();
   ctx.strokeStyle = '#2c3e50';
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 1.5;
   ctx.stroke();
 
   ctx.fillStyle = '#2c3e50';
-  ctx.font = 'bold 12px Segoe UI, sans-serif';
+  ctx.font = 'bold 10px Segoe UI, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(String(count), x, y);
+  ctx.fillText(`+${count}`, x + 18, y + 9);
   ctx.restore();
+}
+
+function unitSide(id) {
+  if (['ring-bearer','aragorn','legolas','gimli','rohan-cavalry','gondor-army','gandalf'].includes(id)) {
+    return 'LIGHT';
+  }
+  return 'SHADOW';
+}
+
+function unitInitials(id) {
+  const map = {
+    'ring-bearer': 'FR',
+    'aragorn': 'AR',
+    'legolas': 'LE',
+    'gimli': 'GI',
+    'rohan-cavalry': 'RO',
+    'gondor-army': 'GO',
+    'gandalf': 'GA',
+    'witch-king': 'WK',
+    'nazgul-2': 'N2',
+    'nazgul-3': 'N3',
+    'uruk-hai': 'UR',
+    'saruman': 'SA',
+    'sauron': 'SU',
+    'orc-host': 'OH',
+  };
+  return map[id] || id.slice(0, 2).toUpperCase();
 }
 
 function drawRingBadge(ctx, x, y) {
