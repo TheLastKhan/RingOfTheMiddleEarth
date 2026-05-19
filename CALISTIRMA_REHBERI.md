@@ -1,194 +1,215 @@
-# 🏔️ Ring of the Middle Earth — Adım Adım Çalıştırma Rehberi
+# Ring of the Middle Earth - Calistirma Rehberi
 
----
+Bu rehber projeyi temiz bir sekilde baslatmak, test etmek ve demo oncesi kontrol etmek icindir.
 
-## 📋 ÖN GEREKSINIMLER
+## 1. On Gereksinimler
 
-Projeyi çalıştırmadan önce şunları kur:
+Gerekli araclar:
 
-### 1. Docker Desktop (ZORUNLUubr)
-```
-İndir: https://www.docker.com/products/docker-desktop/
-```
-- Windows'ta WSL2 backend gerekli
-- Kurulumdan sonra bilgisayarı yeniden başlat
-- Docker Desktop'u aç ve çalıştığını doğrula:
+- Docker Desktop
+- Docker Compose v2
+- Go 1.22+ Go testleri icin
+- Git
+
+Docker Desktop acik olmali. Kontrol:
+
 ```powershell
 docker --version
-# Docker version 24.x.x
 docker compose version
-# Docker Compose version v2.x.x
 ```
 
-### 2. Go 1.22+ (Test için)
-```
-İndir: https://go.dev/dl/
-```
+## 2. Projeyi Baslatma
+
 ```powershell
-go version
-# go1.22.x windows/amd64
-```
-
-### 3. Git (Opsiyonel)
-```powershell
-git --version
-```
-
----
-
-## 🚀 ADIM ADIM ÇALIŞTIRMA
-
-### Adım 1: Proje dizinine git
-```powershell
-cd c:\Users\hakan\termproject
-```
-
-### Adım 2: Önce testleri çalıştır (Docker olmadan)
-```powershell
-cd option-b
-go test -v ./...
-```
-
-**Beklenen çıktı:**
-```
-=== RUN   TestCombat_PlainsTie
---- PASS: TestCombat_PlainsTie (0.00s)
-=== RUN   TestCombat_FortressDefense
---- PASS: TestCombat_FortressDefense (0.00s)
-=== RUN   TestCombat_IgnoresFortress
---- PASS: TestCombat_IgnoresFortress (0.00s)
-=== RUN   TestCombat_IgnoresFortressButFortified
---- PASS: TestCombat_IgnoresFortressButFortified (0.00s)
-=== RUN   TestCombat_LeadershipBonus
---- PASS: TestCombat_LeadershipBonus (0.00s)
-=== RUN   TestCombat_Indestructible
---- PASS: TestCombat_Indestructible (0.00s)
-ok      rotr/internal/game
-
-=== RUN   TestRouter_DarkSideStripped
---- PASS: TestRouter_DarkSideStripped (0.00s)
-=== RUN   TestRouter_RingBearerMovedNeverDarkSide
---- PASS: TestRouter_RingBearerMovedNeverDarkSide (0.00s)
-=== RUN   TestRouter_CacheUpdateNeverExposesRingBearer
---- PASS: TestRouter_CacheUpdateNeverExposesRingBearer (0.00s)
-ok      rotr/internal/router
-
-=== RUN   TestPipeline1_KnownRiskScore
---- PASS: TestPipeline1_KnownRiskScore (0.00s)
-=== RUN   TestPipeline1_NazgulProximity
---- PASS: TestPipeline1_NazgulProximity (0.00s)
-=== RUN   TestPipeline2_PositiveIntercept
---- PASS: TestPipeline2_PositiveIntercept (0.00s)
-=== RUN   TestPipeline2_NegativeIntercept
---- PASS: TestPipeline2_NegativeIntercept (0.00s)
-ok      rotr/internal/pipeline
-```
-**13 test, hepsi PASS.**
-
-### Adım 3: Docker ile tüm sistemi başlat
-```powershell
-cd c:\Users\hakan\termproject
+cd C:\Users\hakan\termproject
 docker compose up -d --build
 ```
 
-Bu komut şunları yapar (ilk seferde 5-10 dakika sürer):
-1. Zookeeper'ı başlatır
-2. 3 Kafka broker'ı başlatır
-3. Schema Registry'yi başlatır
-4. Kafka Init: 10 topic oluşturur + Avro schema'ları kaydeder
-5. Kafka Streams Java uygulamasını başlatır
-6. 3 Go game engine instance'ını derleyip başlatır
-7. Nginx load balancer'ı başlatır
-8. UI'ı başlatır
+Ilk calistirmada image indirme ve Maven/Go build surebilir.
 
-### Adım 4: Servisleri kontrol et
+## 3. Servisleri Kontrol Etme
+
 ```powershell
-docker compose ps
+docker ps
 ```
 
-**Beklenen çıktı (tüm servisler "running"):**
-```
-NAME                  STATUS
-rotr-zookeeper        running
-rotr-kafka-1          running
-rotr-kafka-2          running
-rotr-kafka-3          running
-rotr-schema-registry  running
-rotr-kafka-init       exited (0)  ← run-once, normal
-rotr-kafka-streams    running
-rotr-go-1             running
-rotr-go-2             running
-rotr-go-3             running
-rotr-nginx            running
-rotr-ui               running
-```
+Beklenen ana containerlar:
 
-### Adım 5: Health check
+- `rotr-zookeeper`
+- `rotr-kafka-1`
+- `rotr-kafka-2`
+- `rotr-kafka-3`
+- `rotr-schema-registry`
+- `rotr-kafka-streams`
+- `rotr-go-1`
+- `rotr-go-2`
+- `rotr-go-3`
+- `rotr-nginx`
+- `rotr-ui`
+
+Health check:
+
 ```powershell
-curl http://localhost:8080/health
+Invoke-RestMethod http://localhost/health
 ```
+
+Beklenen:
+
 ```json
-{"status":"ok","turn":0,"timestamp":1712480000}
+{
+  "status": "ok"
+}
 ```
 
-### Adım 6: Tarayıcıda aç
-- **UI**: http://localhost:3000
-- **Light Side**: http://localhost:3000?side=light
-- **Dark Side**: http://localhost:3000?side=dark
+## 4. Oyunu Acma
 
-### Adım 7: Logları izle
-```powershell
-# Tüm servisler
-docker compose logs -f
+Light side:
 
-# Sadece Go engine
-docker compose logs -f go-engine-1
-
-# Sadece Kafka Streams
-docker compose logs -f kafka-streams
+```text
+http://localhost:3000?side=light
 ```
 
-### Adım 8: Fault tolerance testi
+Dark side:
+
+```text
+http://localhost:3000?side=dark
+```
+
+Iki farkli tarayici sekmesi acarak iki tarafi ayni anda gosterebilirsin.
+
+## 5. Testler
+
+Go testleri:
+
 ```powershell
-# Bir Go instance'ı durdur
+cd C:\Users\hakan\termproject\option-b
+go test ./...
+cd ..
+```
+
+Kafka Streams validation testleri:
+
+```powershell
+.\scripts\demo-validation-k4.ps1
+```
+
+Beklenen Maven sonucu:
+
+```text
+Tests run: 9, Failures: 0, Errors: 0, Skipped: 0
+BUILD SUCCESS
+```
+
+## 6. Schema Registry Kontrolu
+
+```powershell
+Invoke-RestMethod http://localhost:8081/subjects
+```
+
+Beklenen subject sayisi: 10.
+
+Surum kontrolleri:
+
+```powershell
+Invoke-RestMethod http://localhost:8081/subjects/game.orders.validated-value/versions
+Invoke-RestMethod http://localhost:8081/subjects/game.session-value/versions
+```
+
+Beklenen:
+
+- `game.orders.validated-value`: `1, 2`
+- `game.session-value`: `1`
+
+## 7. Analiz Endpointleri
+
+Route risk:
+
+```powershell
+Invoke-RestMethod http://localhost/analysis/routes
+```
+
+Intercept:
+
+```powershell
+Invoke-RestMethod http://localhost/analysis/intercept
+```
+
+Ikisi de bos/null degil, dolu veri donmeli.
+
+## 8. pprof / Goroutine Kontrolu
+
+```powershell
+Invoke-RestMethod "http://localhost/debug/pprof/goroutine?debug=1"
+```
+
+Uzun test icin:
+
+```powershell
+.\scripts\check-pprof-10turns.ps1
+```
+
+Bu script baslangic ve bitis goroutine toplamlarini yazar.
+
+## 9. Fault Tolerance Testi
+
+Bir Go instance durdur:
+
+```powershell
 docker compose stop go-engine-2
-
-# 10 saniye bekle, sonra kontrol et
-curl http://localhost:8080/health
-# Hala çalışıyor!
-
-# Geri başlat
-docker compose start go-engine-2
 ```
 
-### Adım 9: Kapatma
+Nginx uzerinden saglik kontrolu:
+
+```powershell
+Invoke-RestMethod http://localhost/health
+```
+
+Hala `ok` donmeli.
+
+Geri baslat:
+
+```powershell
+docker compose up -d go-engine-2
+```
+
+## 10. Eski UI Gorunurse
+
+```powershell
+docker compose up -d --build ui go-engine-1 go-engine-2 go-engine-3 kafka-streams
+```
+
+Tarayicida hard refresh:
+
+```text
+Ctrl + F5
+```
+
+## 11. Kapatma
+
+Sadece durdur:
+
+```powershell
+docker compose down
+```
+
+Volume dahil sifirla:
+
 ```powershell
 docker compose down -v
 ```
 
----
+## 12. Demo Oncesi Hizli Kontrol
 
-## 🔧 SORUN GİDERME
+```powershell
+cd C:\Users\hakan\termproject
+docker compose up -d --build
+docker ps
+Invoke-RestMethod http://localhost/health
+Invoke-RestMethod http://localhost:8081/subjects
+Invoke-RestMethod http://localhost/analysis/routes
+Invoke-RestMethod http://localhost/analysis/intercept
+go test -C option-b ./...
+.\scripts\demo-validation-k4.ps1
+```
 
-| Sorun | Çözüm |
-|-------|-------|
-| Docker Desktop yok | https://docker.com dan indir |
-| Port 80 kullanımda | Docker Desktop'tan kullanılabilir portları kontrol et |
-| Kafka başlatma hatası | `docker compose down -v` sonra tekrar `docker compose up -d --build` |
-| Go build hatası | `cd option-b && go vet ./...` ile kontrol et |
-| Memory yetersiz | Docker Desktop Settings → Resources → RAM'i 6GB+ yap |
-
----
-
-## 📊 SERVİS PORTLARI
-
-| Servis | Port | URL |
-|--------|------|-----|
-| UI | 3000 | http://localhost:3000 |
-| Game Engine (Nginx) | 80 | http://localhost:80 |
-| Go Engine 1 | 8080 | http://localhost:8080 |
-| Go Engine 2 | 8082 | http://localhost:8082 |
-| Go Engine 3 | 8083 | http://localhost:8083 |
-| Schema Registry | 8081 | http://localhost:8081 |
-| Kafka 1/2/3 | 9092/9093/9094 | — |
-| Zookeeper | 2181 | — |
+Not: Go surumun `go test -C option-b ./...` desteklemiyorsa klasik sekilde `cd option-b; go test ./...; cd ..` kullan.

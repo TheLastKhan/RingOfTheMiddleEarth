@@ -109,6 +109,17 @@ The current implementation is not a full production transactional replay engine.
 
 Existing V1 consumers can continue reading because the V2 fields have defaults. `game.session-value` is registered with a flexible world-state snapshot schema.
 
+## Last Verified Test Run
+
+- `go test ./...` passed in `option-b`.
+- `scripts/demo-validation-k4.ps1` passed with 9 Kafka Streams validation tests and 0 failures.
+- `docker compose up -d --build` started the Go engines and Kafka Streams successfully.
+- All main services were up: nginx, UI, 3 Go engines, Kafka Streams, Schema Registry, 3 Kafka brokers, and Zookeeper.
+- Schema Registry exposed 10 subjects.
+- `game.orders.validated-value` versions `[1,2]` and `game.session-value` version `[1]` were present.
+- `/health`, `/analysis/routes`, `/analysis/intercept`, and `/debug/pprof/goroutine?debug=1` responded.
+- Fault tolerance smoke test passed: after stopping `go-engine-2`, 5 of 5 nginx `/health` requests succeeded.
+
 ## LLM Usage Log
 
 AI assistance was used for:
@@ -127,7 +138,7 @@ The project-specific rules, map data, game flow, and implementation decisions we
 | --- | --- |
 | K4 validation rules | `kafka/streams/src/test/java/rotr/streams/OrderValidatorTest.java` covers all 8 error-code cases. `scripts/demo-validation-k4.ps1` runs those tests through Maven/Docker. |
 | K5 route risk enrichment | `RouteRiskEnricher` attaches `routeRiskScore`, `threatenedPaths`, and `blockedPaths`; `/analysis/routes` also exposes ranked route risk in the UI/API. |
-| K6 GameOver exactly once | `TestProcessTurnEmitsGameOverOnce` proves app-level duplicate suppression. GameOver records use deterministic identity where supported. Full Kafka transaction crash proof remains production hardening. |
+| K6 GameOver exactly once | `TestProcessTurnEmitsGameOverOnce` proves app-level duplicate suppression. GameOver records use deterministic event identity and stable keying in the Go win-condition helper. Full Kafka transaction crash proof remains production hardening. |
 | B2 fault tolerance | `docker compose stop go-engine-2` followed by repeated `GET /health` through nginx verifies surviving engines keep serving. |
 | B7 information hiding | `router_test.go` verifies side-specific routing; Dark state strips Ring Bearer region. |
 | B8 Go pipelines | `pipeline1_test.go` and `pipeline2_test.go` verify route risk and interception outputs. |

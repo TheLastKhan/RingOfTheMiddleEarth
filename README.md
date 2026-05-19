@@ -1,294 +1,174 @@
 # Ring of the Middle Earth
 
-**Distributed Application Development — Term Project**  
-**Technology Choice: Option B — Go**
+Distributed Application Development Term Project
 
----
+Technology choice: **Option B - Go + Kafka**
 
-## Technology Choice
+## Current Status
 
-This project implements the game engine using **Go 1.22+** with **confluent-kafka-go v2**.
+This repository contains a playable/demo-ready distributed strategy game based on the Ring of the Middle Earth specification.
 
-**Why Go over Akka:**
+Latest verified checks:
 
-The Go + Kafka stateless architecture maps naturally to this problem. All authoritative game state lives in Kafka KTables — Go instances are fully interchangeable. When a node crashes, Kafka consumer group rebalance reassigns its partitions to surviving instances within seconds, with zero application-layer coordination. State recovery is Kafka partition replay, not actor journal recovery.
+- `go test ./...` passes.
+- `scripts/demo-validation-k4.ps1` passes Kafka Streams validation tests: 9 tests, 0 failures.
+- `docker compose up -d --build` starts the full stack.
+- 3 Go engines, Kafka Streams, 3 Kafka brokers, Schema Registry, nginx, UI, and Zookeeper run together.
+- `/health`, `/analysis/routes`, `/analysis/intercept`, Schema Registry, and pprof endpoints respond.
+- Fault tolerance smoke test passes: stopping `go-engine-2` still leaves nginx health checks successful.
 
-The single hardest constraint — information asymmetry — is enforced in one place: `EventRouter.route()`. `game.ring.position` goes exclusively to `lightSSECh`, `game.ring.detection` exclusively to `darkSSECh`. This is verified with `go test -race`.
-
----
-
-## Repository Structure
-
-```
-ring-of-the-middle-earth/
-├── docker-compose.yml
-├── Makefile
-├── README.md
-├── config/
-│   ├── units.conf          14 units, all config-driven
-│   └── map.conf            22 regions, 37 paths, 4 canonical routes
-├── kafka/
-│   ├── schemas/            11 Avro .avsc files + register script
-│   ├── streams/            Kafka Streams Topology 1 & 2 (Java)
-│   └── init/               create-topics.sh
-├── nginx/
-│   └── nginx.conf
-├── option-b/               Go implementation
-│   ├── go.mod
-│   ├── cmd/server/
-│   │   └── main.go
-│   └── internal/
-│       ├── api/            HTTP handlers + SSE
-│       ├── cache/          WorldStateCache + CacheManager
-│       ├── config/         Config loader
-│       ├── game/           TurnProcessor, CombatEngine, GameGraph
-│       ├── kafka/          Consumer + Producer
-│       ├── pipeline/       Route Risk (P1) + Intercept (P2)
-│       ├── router/         EventRouter — information asymmetry
-│       └── validation/     Order validation rules
-└── ui/
-    └── index.html          Vanilla JS + SSE, no framework
-```
-
----
-
-## Prerequisites
-
-| Tool | Version |
-|------|---------|
-| Docker | 24+ |
-| Docker Compose | v2 |
-| Go | 1.22+ (for `make test`) |
-| Java | 17+ (for Kafka Streams build) |
-| Make | any |
-
----
+Important honesty note: the project demonstrates app-level duplicate suppression and deterministic GameOver identity, but it does not claim full production-grade transactional Kafka recovery for every crash point.
 
 ## Quick Start
 
-```bash
-# Clone
-git clone https://github.com/yourusername/ring-of-the-middle-earth
-cd ring-of-the-middle-earth
+Open Docker Desktop first, then run:
 
-# Start everything
-make up
-
-# Wait ~90 seconds for Kafka to be ready
-# Then open two browser tabs:
-# Tab 1 (Light Side): http://localhost:3000
-# Tab 2 (Dark Side):  http://localhost:3000
+```powershell
+cd C:\Users\hakan\termproject
+docker compose up -d --build
+docker ps
+Invoke-RestMethod http://localhost/health
 ```
 
----
+Open the game:
 
-## Make Targets
+- Light side: `http://localhost:3000?side=light`
+- Dark side: `http://localhost:3000?side=dark`
 
-```bash
-make up              # Build + start all services (detached)
-make down            # Stop all services + remove volumes
-make test            # Run unit tests — no Docker required
-make logs            # Follow Go instance logs
-make logs-kafka      # Follow Kafka broker logs
-make ps              # Show service status
-make check-topics    # Describe all 10 Kafka topics
-make register-schemas # Register Avro schemas in Schema Registry
-make fault-test      # Demo Scenario 3: stop go-2, observe rebalance
-make check-game-over # Count GameOver events in game.broadcast
-make clean           # Remove all containers + images
+## How To Play
+
+Light side tries to move the Ring Bearer from The Shire to Mount Doom and then submit `DESTROY_RING`.
+
+Light wins when:
+
+- Ring Bearer is at Mount Doom.
+- `DESTROY_RING` is submitted that turn.
+- No active Shadow unit is in Mount Doom.
+
+Shadow tries to find, block, intercept, or destroy the Ring Bearer.
+
+Shadow wins when:
+
+- Ring Bearer is destroyed/captured by the game logic.
+
+The game ends in a draw if the max turn limit is reached before either side wins.
+
+## Main Services
+
+| Service | Port | Purpose |
+| --- | --- | --- |
+| UI | 3000 | Browser game |
+| nginx | 80 | Load balancer for Go engines |
+| go-engine-1 | 8080 | Go game engine |
+| go-engine-2 | 8082 | Go game engine |
+| go-engine-3 | 8083 | Go game engine |
+| schema-registry | 8081 | Avro schema registry |
+| kafka-1 | 9092 | Kafka broker |
+| kafka-2 | 9093 | Kafka broker |
+| kafka-3 | 9094 | Kafka broker |
+| zookeeper | 2181 | Kafka coordination |
+
+## Useful Commands
+
+Run Go tests:
+
+```powershell
+cd C:\Users\hakan\termproject\option-b
+go test ./...
 ```
 
----
+Run Kafka Streams validation tests:
 
-## Running Unit Tests (No Docker Required)
-
-```bash
-cd option-b
-go test -race ./...
-
-# Expected output:
-# ok  rotr/internal/game      0.12s
-# ok  rotr/internal/router    0.11s
-# ok  rotr/internal/pipeline  0.09s
+```powershell
+cd C:\Users\hakan\termproject
+.\scripts\demo-validation-k4.ps1
 ```
 
-Test files:
+Check schemas:
 
-| File | Tests | Rubric |
-|------|-------|--------|
-| `internal/game/combat_test.go` | 6 combat formula cases | B3 |
-| `internal/router/router_test.go` | 3 information hiding cases | B7 |
-| `internal/pipeline/pipeline1_test.go` | 2 route risk cases | B8 |
-| `internal/pipeline/pipeline2_test.go` | 2 intercept cases | B8 |
-
----
-
-## Services
-
-| Service | Port | Description |
-|---------|------|-------------|
-| nginx | 80 | Load balancer → 3 Go instances |
-| go-1 | 8080 | Go game engine instance 1 |
-| go-2 | 8082 | Go game engine instance 2 |
-| go-3 | 8083 | Go game engine instance 3 |
-| kafka-1 | 29092 | Kafka broker 1 |
-| kafka-2 | 29093 | Kafka broker 2 |
-| kafka-3 | 29094 | Kafka broker 3 |
-| schema-registry | 8081 | Confluent Schema Registry |
-| kafka-streams | 8090 | Topology 1 + 2 |
-| ui | 3000 | Game UI |
-| zookeeper | 2181 | Zookeeper |
-
----
-
-## Service Startup Order
-
-```
-zookeeper → kafka-1/2/3 → schema-registry → kafka-init → kafka-streams + go-1/2/3 → nginx
+```powershell
+Invoke-RestMethod http://localhost:8081/subjects
+Invoke-RestMethod http://localhost:8081/subjects/game.orders.validated-value/versions
+Invoke-RestMethod http://localhost:8081/subjects/game.session-value/versions
 ```
 
-`kafka-init` runs once: creates 10 topics and registers Avro schemas, then exits.
+Check route/intercept analysis:
 
----
+```powershell
+Invoke-RestMethod http://localhost/analysis/routes
+Invoke-RestMethod http://localhost/analysis/intercept
+```
+
+Check pprof:
+
+```powershell
+Invoke-RestMethod "http://localhost/debug/pprof/goroutine?debug=1"
+```
+
+Fault tolerance smoke test:
+
+```powershell
+docker compose stop go-engine-2
+Invoke-RestMethod http://localhost/health
+docker compose up -d go-engine-2
+```
+
+Stop everything:
+
+```powershell
+docker compose down
+```
+
+Reset volumes too:
+
+```powershell
+docker compose down -v
+```
 
 ## Kafka Topics
 
-| Topic | Partitions | Cleanup | Key |
-|-------|-----------|---------|-----|
-| game.orders.raw | 3 | delete 1h | playerId |
-| game.orders.validated | 6 | delete 1h | unitId |
-| game.events.unit | 6 | delete 7d | unitId |
-| game.events.region | 6 | delete 7d | regionId |
-| game.events.path | 6 | delete 7d | pathId |
-| game.session | 1 | **compact** | — |
-| game.broadcast | 1 | delete 1h | — |
-| game.ring.position | 1 | delete 1h | — |
-| game.ring.detection | 2 | delete 1h | playerId |
-| game.dlq | 3 | delete 7d | errorCode |
-
----
+| Topic | Purpose |
+| --- | --- |
+| `game.orders.raw` | Raw player orders |
+| `game.orders.validated` | Validated and route-risk-enriched orders |
+| `game.events.unit` | Unit events |
+| `game.events.region` | Region events |
+| `game.events.path` | Path events |
+| `game.session` | Compacted latest world-state/session snapshot |
+| `game.broadcast` | World snapshots and global events |
+| `game.ring.position` | Light-only Ring Bearer position events |
+| `game.ring.detection` | Shadow detection events |
+| `game.dlq` | Invalid orders |
 
 ## API Endpoints
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/game/start` | POST | `{"mode":"HVH","lightPlayerId":"...","darkPlayerId":"..."}` |
-| `/game/state` | GET | World state. Ring Bearer region stripped for Dark Side. |
-| `/order` | POST | Submit order → 202 Accepted |
-| `/orders/available` | GET | `?unitId=X&playerId=Y` |
-| `/events` | GET | SSE stream `?playerId=Y` |
-| `/analysis/routes` | GET | Light Side only — ranked route risk |
-| `/analysis/intercept` | GET | Dark Side only — Nazgul intercept plan |
-| `/health` | GET | 200 OK or 503 |
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /health` | Service health |
+| `GET /game/state?playerId=...&side=...` | Side-specific world state |
+| `POST /order` | Submit an order |
+| `GET /orders/available` | List possible orders |
+| `GET /events` | SSE stream |
+| `GET /analysis/routes` | Light route risk analysis |
+| `GET /analysis/intercept` | Shadow intercept analysis |
+| `GET /debug/pprof/goroutine?debug=1` | Goroutine diagnostics |
 
----
+## Tests And Evidence
 
-## Demo Scenarios
+| Rubric area | Evidence |
+| --- | --- |
+| Go combat/router/pipeline/turn logic | `go test ./...` |
+| Kafka Streams 8 validation rules | `scripts/demo-validation-k4.ps1` |
+| Schema evolution | Schema Registry shows `game.orders.validated-value` versions `1,2` |
+| Session schema | Schema Registry shows `game.session-value` version `1` |
+| Fault tolerance | Stop `go-engine-2`, health still responds through nginx |
+| pprof | `/debug/pprof/goroutine?debug=1` |
 
-### Scenario 1 — Information Hiding
+## Documentation
 
-```bash
-# Terminal 1: Light Side SSE
-curl -N "http://localhost:80/events?playerId=light-player"
-
-# Terminal 2: Dark Side SSE
-curl -N "http://localhost:80/events?playerId=dark-player"
-
-# After turn end with Witch-King 1 hop from Ring Bearer:
-# Terminal 1: RingBearerMoved visible, RingBearerDetected NOT present
-# Terminal 2: RingBearerDetected visible, ring-bearer.currentRegion=""
-
-# Verify:
-curl "localhost:80/game/state?playerId=light-player" | jq '.units[]|select(.id=="ring-bearer")'
-curl "localhost:80/game/state?playerId=dark-player"  | jq '.units[]|select(.id=="ring-bearer")'
-```
-
-### Scenario 2 — Maia Dispatch
-
-```bash
-# Same orderType, different effect based on config:
-
-# Gandalf OpenPath (path turns TEMPORARILY_OPEN)
-curl -X POST localhost:80/order -H "Content-Type: application/json" \
-  -d '{"orderType":"MAIA_ABILITY","playerId":"light-player","unitId":"gandalf","turn":6,"payload":{"targetPathId":"rivendell-to-moria"}}'
-
-# Saruman CorruptPath (surveillanceLevel=3, permanent)
-curl -X POST localhost:80/order -H "Content-Type: application/json" \
-  -d '{"orderType":"MAIA_ABILITY","playerId":"dark-player","unitId":"saruman","turn":6,"payload":{"targetPathId":"fords-of-isen-to-edoras"}}'
-```
-
-### Scenario 3 — Fault Tolerance + Exactly-Once
-
-```bash
-# Run fault tolerance test
-make fault-test
-
-# Exactly-once: advance Ring Bearer to Mount Doom, submit DestroyRing, kill engine
-curl -X POST localhost:80/order \
-  -d '{"orderType":"DESTROY_RING","playerId":"light-player","unitId":"ring-bearer","turn":15}'
-
-docker stop go-1 go-2 go-3
-docker start go-1 go-2 go-3
-
-# Count GameOver in broadcast — must be exactly 1
-make check-game-over
-```
-
----
-
-## Goroutine Leak Test
-
-```bash
-# After 10 turns, check goroutine count
-curl -s localhost/debug/pprof/goroutine?debug=1 | head -5
-
-# Count should remain stable — no growth over time
-```
-
----
-
-## Schema Evolution Demo (V2)
-
-```bash
-# Check current compatibility
-curl localhost:8081/config/game.orders.validated-value
-
-# Test V2 compatibility before deploying
-curl -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" \
-  -d "{\"schema\": $(cat kafka/schemas/game.orders.validated.v2.avsc | jq -c . | jq -R .)}" \
-  localhost:8081/compatibility/subjects/game.orders.validated-value/versions/latest
-# Expected: {"is_compatible":true}
-
-# Deploy V2 while V1 consumers run
-curl -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" \
-  -d "{\"schema\": $(cat kafka/schemas/game.orders.validated.v2.avsc | jq -c . | jq -R .)}" \
-  localhost:8081/subjects/game.orders.validated-value/versions
-# Expected: {"id":2}
-
-# V1 consumers continue without error
-docker logs go-1 --tail=10  # No schema errors
-```
-
----
-
-## Key Design Decisions
-
-**No unit ID string literals in game logic.**  
-All unit behaviour is config-driven. `cfg.DetectionRange > 0` identifies Nazgul. `cfg.Maia && cfg.CanOpenPath()` identifies Gandalf. Running `grep -r "witch-king" option-b/internal/game/` returns zero results.
-
-**Single information asymmetry enforcement point.**  
-`EventRouter.route()` in `internal/router/event_router.go` is the only place routing decisions are made. Verified with `go test -race ./internal/router/...`.
-
-**Kafka-backed application tier.**
-Go instances are interchangeable behind nginx, orders/events are written to Kafka, and the latest world snapshot is also written to the compacted `game.session` topic. The in-process cache is still used for fast HTTP/SSE serving, so full production replay from Kafka is a hardening item rather than something to overclaim in the demo.
-
-**Exactly-once GameOver.**  
-GameOver emission has an application-level duplicate guard and is covered by unit tests. A fully transactional/idempotent Kafka producer crash proof is documented as remaining production hardening in `architecture-document.md`.
-
----
-
-## Academic Integrity
-
-AI tools were used to understand concepts (Kafka KTable semantics, Go pipeline patterns, Docker Compose healthcheck syntax). All game logic — combat formula, detection formula, 13-step turn processing, information asymmetry enforcement, state machine transitions — was written directly from the project specification.
-
-See `architecture-document.md` for the full architecture notes and LLM usage log.
+- `CALISTIRMA_REHBERI.md`: how to run and test the project.
+- `SUNUM_REHBERI.md`: demo script and Q&A answers.
+- `TEKNOLOJI_EGITIM.md`: technology explanations.
+- `architecture-document.md`: architecture, tradeoffs, and rubric evidence.
+- `YENI_DOSYALAR_ANALIZI.md`: documentation/file map.
+- `sonnet.md`: archived learning notes summary.
