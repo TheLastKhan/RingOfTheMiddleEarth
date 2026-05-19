@@ -18,13 +18,31 @@ func TestProcessTurnEmitsGameOverOnce(t *testing.T) {
 	if countGameOver(first) != 1 {
 		t.Fatalf("first ProcessTurn emitted %d GAME_OVER events, want 1", countGameOver(first))
 	}
-
 	second := processor.ProcessTurn(state, nil)
 	if countGameOver(second) != 0 {
 		t.Fatalf("second ProcessTurn emitted %d GAME_OVER events, want 0", countGameOver(second))
 	}
 	if len(second) != 0 {
 		t.Fatalf("second ProcessTurn emitted %d events after game over, want 0", len(second))
+	}
+}
+
+func TestGameOverEventHasDeterministicIdentity(t *testing.T) {
+	cfg := config.DefaultConfig()
+	graph := NewGameGraph(cfg)
+	processor := NewTurnProcessor(cfg, graph)
+	state := InitTurnState(cfg, graph)
+	state.Units["ring-bearer"].Status = "DESTROYED"
+
+	events := processor.ProcessTurn(state, nil)
+	if countGameOver(events) != 1 {
+		t.Fatalf("ProcessTurn emitted %d GAME_OVER events, want 1", countGameOver(events))
+	}
+	if events[0].Key != "game-over" {
+		t.Fatalf("GAME_OVER key = %q, want game-over", events[0].Key)
+	}
+	if !strings.Contains(string(events[0].Data), `"eventId":"game-over-SHADOW-1"`) {
+		t.Fatalf("GAME_OVER event missing deterministic eventId: %s", string(events[0].Data))
 	}
 }
 

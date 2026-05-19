@@ -2,7 +2,7 @@
 # Ring of the Middle Earth — Makefile
 # ═══════════════════════════════════════════════════════
 
-.PHONY: all up down build test logs clean fault-test demo-1 demo-2 demo-3
+.PHONY: all up down build test test-streams logs clean fault-test demo-1 demo-2 demo-3 demo-validation pprof-10turns check-gameover-idempotency
 
 # ── Start all services ──
 up:
@@ -26,6 +26,18 @@ build:
 test:
 	cd option-b && go test -race -v ./...
 	@echo "✅ All tests passed with -race"
+
+test-streams:
+	cd kafka/streams && mvn test
+
+demo-validation:
+	powershell -ExecutionPolicy Bypass -File scripts/demo-validation-k4.ps1
+
+pprof-10turns:
+	powershell -ExecutionPolicy Bypass -File scripts/check-pprof-10turns.ps1
+
+check-gameover-idempotency:
+	powershell -ExecutionPolicy Bypass -File scripts/check-gameover-idempotency.ps1
 
 # ── View logs ──
 logs:

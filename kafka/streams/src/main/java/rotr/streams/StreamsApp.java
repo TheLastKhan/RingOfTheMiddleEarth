@@ -95,7 +95,7 @@ public class StreamsApp {
         // Split: valid orders vs invalid orders (modern API, replaces deprecated branch())
         var splitOrders = rawOrders.split(Named.as("order-"))
             .branch(
-                (key, value) -> OrderValidator.validate(value).isValid(),
+                (key, value) -> OrderValidator.validateAndTrack(value).isValid(),
                 Branched.as("valid")
             )
             .defaultBranch(Branched.as("invalid"));

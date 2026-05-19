@@ -120,3 +120,26 @@ AI assistance was used for:
 - adding targeted tests around GameOver, path timers, Maia abilities, and validation behavior
 
 The project-specific rules, map data, game flow, and implementation decisions were reviewed against `TermProject_RingOfTheMiddleEarth.md` and local test results.
+
+## Rubric Evidence Appendix
+
+| Rubric item | Evidence |
+| --- | --- |
+| K4 validation rules | `kafka/streams/src/test/java/rotr/streams/OrderValidatorTest.java` covers all 8 error-code cases. `scripts/demo-validation-k4.ps1` runs those tests through Maven/Docker. |
+| K5 route risk enrichment | `RouteRiskEnricher` attaches `routeRiskScore`, `threatenedPaths`, and `blockedPaths`; `/analysis/routes` also exposes ranked route risk in the UI/API. |
+| K6 GameOver exactly once | `TestProcessTurnEmitsGameOverOnce` proves app-level duplicate suppression. GameOver records use deterministic identity where supported. Full Kafka transaction crash proof remains production hardening. |
+| B2 fault tolerance | `docker compose stop go-engine-2` followed by repeated `GET /health` through nginx verifies surviving engines keep serving. |
+| B7 information hiding | `router_test.go` verifies side-specific routing; Dark state strips Ring Bearer region. |
+| B8 Go pipelines | `pipeline1_test.go` and `pipeline2_test.go` verify route risk and interception outputs. |
+| B9 goroutine leaks | `/debug/pprof/goroutine?debug=1` is enabled. `scripts/check-pprof-10turns.ps1` records before/after goroutine totals over approximately 10 turns. |
+
+## Detailed LLM Interaction Appendix
+
+| Interaction | Prompt summary | Used | Changed or rejected |
+| --- | --- | --- | --- |
+| Docker startup | Diagnose Docker daemon/image and missing `go.sum` build failure. | Error analysis and local build inspection. | Fixed local build flow; did not add unrelated dependency churn. |
+| UI readability | Increase map/panel text readability and align canvas map with SVG. | Visual/layout suggestions. | Accepted scoped CSS/canvas updates; reverted login-screen changes when requested. |
+| Map fidelity | Compare canvas node names, colors, terrain icons, legends, and path styles with SVG. | Local file inspection and targeted UI edits. | Accepted matching names/colors/icons; avoided broad redesign. |
+| Gameplay debugging | Explain Reconnecting/SSE, side ownership errors, and localhost stale build behavior. | Runtime checks and Docker rebuild guidance. | Fixed backend connectivity and validation issues where needed. |
+| Rubric gap analysis | Identify unfinished requirements from `TermProject_RingOfTheMiddleEarth.md`. | Checklist against K/B rubric items. | Accepted route/intercept, session, GameOver, pprof, and docs work; documented production limits honestly. |
+| Remaining-gap completion | Complete K4/K6/B2/B9/B11 evidence. | Tests, scripts, architecture appendix, and deterministic GameOver identity. | Did not falsely claim full transactional Kafka crash proof; recorded it as production hardening. |

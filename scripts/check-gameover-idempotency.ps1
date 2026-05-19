@@ -1,0 +1,7 @@
+Write-Host "GameOver idempotency evidence:"
+Write-Host "- Go unit test: TestProcessTurnEmitsGameOverOnce"
+Write-Host "- Go unit test: TestGameOverEventHasDeterministicIdentity"
+Write-Host "- Runtime GameOver records use key='game-over' and eventId='game-over-<winner>-<turn>' where supported."
+Write-Host ""
+Write-Host "For live Kafka inspection, run:"
+Write-Host "docker exec -it rotr-kafka-1 kafka-console-consumer --bootstrap-server kafka-1:29092 --topic game.broadcast --from-beginning --timeout-ms 15000"

@@ -5,6 +5,7 @@ package game
 import (
 	"encoding/json"
 	"log"
+	"strconv"
 	"time"
 
 	"rotr/internal/config"
@@ -613,12 +614,7 @@ func (tp *TurnProcessor) step13CheckWinConditions(state *TurnState) []GameEvent 
 			regionCfg := tp.cfg.RegionsByID[unit.CurrentRegion]
 			if destroySubmitted && regionCfg.SpecialRole == "RING_DESTRUCTION_SITE" && !hasActiveShadowUnit(state, unit.CurrentRegion) {
 				state.GameOver = true
-				events = append(events, makeEvent("game.broadcast", "", map[string]interface{}{
-					"type":   "GAME_OVER",
-					"winner": "FREE_PEOPLES",
-					"cause":  "Ring destroyed at Mount Doom",
-					"turn":   state.Turn,
-				}))
+				events = append(events, makeGameOverEvent("FREE_PEOPLES", "Ring destroyed at Mount Doom", state.Turn))
 				return events
 			}
 		}
@@ -628,12 +624,7 @@ func (tp *TurnProcessor) step13CheckWinConditions(state *TurnState) []GameEvent 
 	for _, unit := range state.Units {
 		if unit.Config.Class == "RingBearer" && unit.Status == "DESTROYED" {
 			state.GameOver = true
-			events = append(events, makeEvent("game.broadcast", "", map[string]interface{}{
-				"type":   "GAME_OVER",
-				"winner": "SHADOW",
-				"cause":  "Ring Bearer destroyed",
-				"turn":   state.Turn,
-			}))
+			events = append(events, makeGameOverEvent("SHADOW", "Ring Bearer destroyed", state.Turn))
 			return events
 		}
 	}
@@ -641,12 +632,7 @@ func (tp *TurnProcessor) step13CheckWinConditions(state *TurnState) []GameEvent 
 	// Win 3: Max turns exceeded → Shadow wins
 	if state.Turn >= tp.cfg.MaxTurns {
 		state.GameOver = true
-		events = append(events, makeEvent("game.broadcast", "", map[string]interface{}{
-			"type":   "GAME_OVER",
-			"winner": "SHADOW",
-			"cause":  "Maximum turns exceeded — Ring Bearer failed to reach Mount Doom",
-			"turn":   state.Turn,
-		}))
+		events = append(events, makeGameOverEvent("SHADOW", "Maximum turns exceeded - Ring Bearer failed to reach Mount Doom", state.Turn))
 		return events
 	}
 
@@ -690,6 +676,20 @@ func makeEvent(topic, key string, data interface{}) GameEvent {
 		Data:      jsonData,
 		Timestamp: time.Now().UnixMilli(),
 	}
+}
+
+func makeGameOverEvent(winner, cause string, turn int) GameEvent {
+	return makeEvent("game.broadcast", "game-over", map[string]interface{}{
+		"type":    "GAME_OVER",
+		"eventId": gameOverEventID(winner, turn),
+		"winner":  winner,
+		"cause":   cause,
+		"turn":    turn,
+	})
+}
+
+func gameOverEventID(winner string, turn int) string {
+	return "game-over-" + winner + "-" + strconv.Itoa(turn)
 }
 
 func hasActiveShadowUnit(state *TurnState, regionID string) bool {
