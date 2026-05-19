@@ -90,6 +90,22 @@ func main() {
 				log.Printf("Turn timer started: first turn ends in %s", turnDuration)
 			}
 
+		case ack := <-server.ResetCh:
+			if !turnTimer.Stop() {
+				select {
+				case <-turnTimer.C:
+				default:
+				}
+			}
+			turnState = game.InitTurnState(cfg, graph)
+			worldCache.ResetFromConfig(cfg)
+			pendingOrders = pendingOrders[:0]
+			server.ResetTurn()
+			gameStarted = true
+			turnTimer.Reset(turnDuration)
+			log.Printf("New game started: turn reset to 1, first turn ends in %s", turnDuration)
+			close(ack)
+
 		case reqType := <-analysisRequestCh:
 			log.Printf("Analysis requested: %s", reqType)
 

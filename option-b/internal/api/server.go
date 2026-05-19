@@ -39,6 +39,7 @@ type Server struct {
 	// Order channel — for sending to Kafka
 	OrderCh chan validation.Order
 	StartCh chan struct{}
+	ResetCh chan chan struct{}
 }
 
 // NewServer creates a new API server.
@@ -53,12 +54,26 @@ func NewServer(cfg *config.GameConfig, c *cache.WorldStateCache, r *router.Event
 		sseClients: make(map[string]chan router.Event),
 		OrderCh:    make(chan validation.Order, 100),
 		StartCh:    make(chan struct{}, 1),
+		ResetCh:    make(chan chan struct{}, 1),
 	}
 }
 
 func (s *Server) signalGameStarted() {
 	select {
 	case s.StartCh <- struct{}{}:
+	default:
+	}
+}
+
+func (s *Server) signalGameReset() {
+	ack := make(chan struct{})
+	select {
+	case s.ResetCh <- ack:
+		select {
+		case <-ack:
+		case <-time.After(2 * time.Second):
+			log.Printf("game reset timed out")
+		}
 	default:
 	}
 }
@@ -129,7 +144,7 @@ func (s *Server) handleGameStart(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("🎮 Game started: mode=%s, light=%s, dark=%s", req.Mode, req.LightPlayerID, req.DarkPlayerID)
 
-	s.signalGameStarted()
+	s.signalGameReset()
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
 		"status":  "started",
@@ -296,7 +311,6 @@ func (s *Server) handleAvailableOrders(w http.ResponseWriter, r *http.Request) {
 // GET /events — SSE stream
 func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 	playerID := r.URL.Query().Get("playerId")
-	s.signalGameStarted()
 
 	// Set SSE headers
 	w.Header().Set("Content-Type", "text/event-stream")

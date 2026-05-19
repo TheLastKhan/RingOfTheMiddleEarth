@@ -131,6 +131,21 @@ func NewWorldStateCache(cfg *config.GameConfig) *WorldStateCache {
 	return c
 }
 
+func (c *WorldStateCache) ResetFromConfig(cfg *config.GameConfig) {
+	fresh := NewWorldStateCache(cfg)
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.Turn = fresh.Turn
+	c.Units = fresh.Units
+	c.Regions = fresh.Regions
+	c.Paths = fresh.Paths
+	c.UnitConfigs = fresh.UnitConfigs
+	c.LightView = fresh.LightView
+	c.DarkView = fresh.DarkView
+}
+
 // ═══════════════════════════════════════════════════════
 // THREAD-SAFE ACCESS
 // ═══════════════════════════════════════════════════════

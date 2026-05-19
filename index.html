@@ -860,6 +860,9 @@ async function joinGame() {
         darkPlayerId:  chosenSide === 'SHADOW'       ? playerId : 'light-opponent',
       }),
     });
+    State.lastSeenTurn = null;
+    State.nextTurnAt = null;
+    stopProcessingPoll();
   } catch(e) {
     // Oyun zaten başlamış olabilir — devam et
   }
