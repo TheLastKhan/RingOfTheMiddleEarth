@@ -935,13 +935,15 @@ async function fetchState() {
     );
     const data = await res.json();
     handleWorldState(data);
+    return data;
   } catch(e) {
     console.error('State fetch failed:', e);
+    return null;
   }
 }
 
 function handleWorldState(data) {
-  if (data.turn) {
+  if (data.turn !== undefined && data.turn !== null) {
     State.currentTurn = data.turn;
     document.getElementById('turn-number').textContent = data.turn;
   }
@@ -1173,6 +1175,8 @@ function selectOrder(orderType) {
 async function submitOrder() {
   if (!State.selectedUnit || !State.selectedOrder) return;
 
+  await fetchState();
+
   const body = {
     orderType: State.selectedOrder,
     playerId:  State.playerId,
@@ -1198,6 +1202,9 @@ async function submitOrder() {
     } else {
       const err = await res.json();
       notify(err.message || 'Order rejected', 'error');
+      if (err.code === 'WRONG_TURN' || /current turn/i.test(err.message || '')) {
+        fetchState();
+      }
     }
   } catch(e) {
     notify('Server unreachable', 'error');
