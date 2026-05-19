@@ -340,13 +340,17 @@
   /* ── CENTER — Map ───────────────────────────────────── */
   .panel-center {
     position: relative;
-    overflow: hidden;
+    overflow: auto;
     background: var(--dark);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
   }
   #map-canvas {
     width: 100%;
-    height: 100%;
-    min-height: 500px;
+    height: auto;
+    min-height: 520px;
+    display: block;
   }
 
   /* ── RIGHT PANEL — Orders + Events ─────────────────── */
@@ -1225,8 +1229,12 @@ function initCanvas() {
 
 function resizeCanvas() {
   const parent = canvas.parentElement;
-  canvas.width  = parent.clientWidth;
-  canvas.height = parent.clientHeight || 500;
+  const width = Math.max(720, parent.clientWidth);
+  const height = Math.round(width * 0.72);
+  canvas.width  = width;
+  canvas.height = height;
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${height}px`;
   renderMap();
 }
 
