@@ -37,9 +37,10 @@ type Server struct {
 	sseClientsMu sync.RWMutex
 
 	// Order channel — for sending to Kafka
-	OrderCh chan validation.Order
-	StartCh chan struct{}
-	ResetCh chan chan struct{}
+	OrderCh   chan validation.Order
+	StartCh   chan struct{}
+	ResetCh   chan chan struct{}
+	AdvanceCh chan chan struct{}
 }
 
 // NewServer creates a new API server.
@@ -55,6 +56,7 @@ func NewServer(cfg *config.GameConfig, c *cache.WorldStateCache, r *router.Event
 		OrderCh:    make(chan validation.Order, 100),
 		StartCh:    make(chan struct{}, 1),
 		ResetCh:    make(chan chan struct{}, 1),
+		AdvanceCh:  make(chan chan struct{}, 1),
 	}
 }
 
@@ -78,6 +80,19 @@ func (s *Server) signalGameReset() {
 	}
 }
 
+func (s *Server) signalAdvanceTurn() {
+	ack := make(chan struct{})
+	select {
+	case s.AdvanceCh <- ack:
+		select {
+		case <-ack:
+		case <-time.After(5 * time.Second):
+			log.Printf("advance turn timed out")
+		}
+	default:
+	}
+}
+
 // ResetTurn clears per-turn validation state.
 func (s *Server) ResetTurn() {
 	s.validator.ResetTurn()
@@ -89,6 +104,7 @@ func (s *Server) Start() error {
 
 	// ── Endpoints (Section 34) ──
 	mux.HandleFunc("/game/start", s.corsMiddleware(s.handleGameStart))
+	mux.HandleFunc("/game/advance-turn", s.corsMiddleware(s.handleAdvanceTurn))
 	mux.HandleFunc("/game/state", s.corsMiddleware(s.handleGameState))
 	mux.HandleFunc("/order", s.corsMiddleware(s.handleOrder))
 	mux.HandleFunc("/orders/available", s.corsMiddleware(s.handleAvailableOrders))
@@ -150,6 +166,21 @@ func (s *Server) handleGameStart(w http.ResponseWriter, r *http.Request) {
 		"status":  "started",
 		"mode":    req.Mode,
 		"message": "Game initialized. Connect via SSE to receive events.",
+	})
+}
+
+// POST /game/advance-turn — manually resolve the current turn.
+func (s *Server) handleAdvanceTurn(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	s.signalAdvanceTurn()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"status":  "accepted",
+		"message": "Turn advanced manually.",
 	})
 }
 

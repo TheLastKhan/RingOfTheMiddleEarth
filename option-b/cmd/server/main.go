@@ -72,6 +72,35 @@ func main() {
 
 	log.Printf("Game engine ready on port %s", port)
 
+	processTurn := func(reason string) {
+		currentTurn := worldCache.GetSnapshot().Turn
+		log.Printf("Turn %d ended by %s with %d pending orders", currentTurn, reason, len(pendingOrders))
+		events := turnProcessor.ProcessTurn(turnState, pendingOrders)
+		pendingOrders = pendingOrders[:0]
+		for _, event := range events {
+			routed := router.Event{Topic: event.Topic, Key: event.Key, Data: event.Data}
+			eventRouter.Route(routed)
+			if err := producer.Produce(event.Topic, event.Key, event.Data); err != nil {
+				log.Printf("Kafka event produce failed topic=%s: %v", event.Topic, err)
+			}
+			if event.Topic == "game.broadcast" && isWorldState(event.Data) {
+				if err := producer.Produce("game.session", "session", event.Data); err != nil {
+					log.Printf("Kafka session produce failed: %v", err)
+				}
+			}
+		}
+		server.ResetTurn()
+	}
+
+	stopTurnTimer := func() {
+		if !turnTimer.Stop() {
+			select {
+			case <-turnTimer.C:
+			default:
+			}
+		}
+	}
+
 	for {
 		select {
 		case msg := <-kafkaConsumerCh:
@@ -91,12 +120,7 @@ func main() {
 			}
 
 		case ack := <-server.ResetCh:
-			if !turnTimer.Stop() {
-				select {
-				case <-turnTimer.C:
-				default:
-				}
-			}
+			stopTurnTimer()
 			turnState = game.InitTurnState(cfg, graph)
 			worldCache.ResetFromConfig(cfg)
 			pendingOrders = pendingOrders[:0]
@@ -104,6 +128,17 @@ func main() {
 			gameStarted = true
 			turnTimer.Reset(turnDuration)
 			log.Printf("New game started: turn reset to 1, first turn ends in %s", turnDuration)
+			close(ack)
+
+		case ack := <-server.AdvanceCh:
+			if !gameStarted {
+				gameStarted = true
+			}
+			stopTurnTimer()
+			processTurn("manual advance")
+			if !turnState.GameOver {
+				turnTimer.Reset(turnDuration)
+			}
 			close(ack)
 
 		case reqType := <-analysisRequestCh:
@@ -125,23 +160,7 @@ func main() {
 			}
 
 		case <-turnTimer.C:
-			currentTurn := worldCache.GetSnapshot().Turn
-			log.Printf("Turn %d ended with %d pending orders", currentTurn, len(pendingOrders))
-			events := turnProcessor.ProcessTurn(turnState, pendingOrders)
-			pendingOrders = pendingOrders[:0]
-			for _, event := range events {
-				routed := router.Event{Topic: event.Topic, Key: event.Key, Data: event.Data}
-				eventRouter.Route(routed)
-				if err := producer.Produce(event.Topic, event.Key, event.Data); err != nil {
-					log.Printf("Kafka event produce failed topic=%s: %v", event.Topic, err)
-				}
-				if event.Topic == "game.broadcast" && isWorldState(event.Data) {
-					if err := producer.Produce("game.session", "session", event.Data); err != nil {
-						log.Printf("Kafka session produce failed: %v", err)
-					}
-				}
-			}
-			server.ResetTurn()
+			processTurn("timer")
 			if !turnState.GameOver {
 				turnTimer.Reset(turnDuration)
 			}

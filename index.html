@@ -246,6 +246,25 @@
     font-weight: 700;
     letter-spacing: 0.08em;
   }
+  .turn-advance-btn {
+    padding: 0.35rem 0.65rem;
+    background: rgba(201,168,76,0.12);
+    border: 1px solid var(--gold-dim);
+    color: var(--gold);
+    font-family: 'Cinzel', serif;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+  }
+  .turn-advance-btn:hover:not(:disabled) {
+    border-color: var(--gold);
+    background: rgba(201,168,76,0.22);
+  }
+  .turn-advance-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
   .player-badge {
     padding: 0.3rem 0.8rem;
     border: 1px solid;
@@ -642,6 +661,7 @@
     </div>
     <div class="turn-display">Turn <span id="turn-number">—</span></div>
     <div class="turn-timer">Next turn in <span id="next-turn-countdown">waiting</span></div>
+    <button class="turn-advance-btn" id="advance-turn-btn" onclick="advanceTurn()">End Turn</button>
     <div id="player-badge-container"></div>
   </div>
 
@@ -1034,6 +1054,26 @@ function stopProcessingPoll() {
   if (!State.processingPollId) return;
   clearInterval(State.processingPollId);
   State.processingPollId = null;
+}
+
+async function advanceTurn() {
+  const btn = document.getElementById('advance-turn-btn');
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fetch(`${State.serverURL}/game/advance-turn`, {method: 'POST'});
+    if (!res.ok) {
+      notify('Could not advance turn', 'error');
+      return;
+    }
+    document.getElementById('next-turn-countdown').textContent = 'processing...';
+    logEvent('ManualTurnAdvance', `Resolving turn ${State.currentTurn}.`, '');
+    startProcessingPoll();
+    await fetchState();
+  } catch(e) {
+    notify('Server unreachable', 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 // ══════════════════════════════════════════════════════════
