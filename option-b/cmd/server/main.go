@@ -65,6 +65,10 @@ func main() {
 
 	turnDuration := time.Duration(cfg.TurnDurationSeconds) * time.Second
 	turnTimer := time.NewTimer(turnDuration)
+	if !turnTimer.Stop() {
+		<-turnTimer.C
+	}
+	gameStarted := false
 
 	log.Printf("Game engine ready on port %s", port)
 
@@ -78,6 +82,13 @@ func main() {
 
 		case playerID := <-disconnectCh:
 			log.Printf("Player disconnected: %s", playerID)
+
+		case <-server.StartCh:
+			if !gameStarted {
+				gameStarted = true
+				turnTimer.Reset(turnDuration)
+				log.Printf("Turn timer started: first turn ends in %s", turnDuration)
+			}
 
 		case reqType := <-analysisRequestCh:
 			log.Printf("Analysis requested: %s", reqType)
@@ -115,7 +126,9 @@ func main() {
 				}
 			}
 			server.ResetTurn()
-			turnTimer.Reset(turnDuration)
+			if !turnState.GameOver {
+				turnTimer.Reset(turnDuration)
+			}
 
 		case sig := <-signalCh:
 			log.Printf("Received signal %v - shutting down gracefully", sig)

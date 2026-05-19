@@ -81,7 +81,7 @@ type DarkSideView struct {
 // NewWorldStateCache creates a new cache initialized from config.
 func NewWorldStateCache(cfg *config.GameConfig) *WorldStateCache {
 	c := &WorldStateCache{
-		Turn:        0,
+		Turn:        1,
 		Units:       make(map[string]UnitSnapshot, len(cfg.Units)),
 		Regions:     make(map[string]RegionSnapshot, len(cfg.Regions)),
 		Paths:       make(map[string]PathSnapshot, len(cfg.Paths)),

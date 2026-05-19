@@ -38,6 +38,7 @@ type Server struct {
 
 	// Order channel — for sending to Kafka
 	OrderCh chan validation.Order
+	StartCh chan struct{}
 }
 
 // NewServer creates a new API server.
@@ -51,6 +52,14 @@ func NewServer(cfg *config.GameConfig, c *cache.WorldStateCache, r *router.Event
 		port:       port,
 		sseClients: make(map[string]chan router.Event),
 		OrderCh:    make(chan validation.Order, 100),
+		StartCh:    make(chan struct{}, 1),
+	}
+}
+
+func (s *Server) signalGameStarted() {
+	select {
+	case s.StartCh <- struct{}{}:
+	default:
 	}
 }
 
@@ -120,6 +129,7 @@ func (s *Server) handleGameStart(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("🎮 Game started: mode=%s, light=%s, dark=%s", req.Mode, req.LightPlayerID, req.DarkPlayerID)
 
+	s.signalGameStarted()
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
 		"status":  "started",
@@ -136,10 +146,21 @@ func (s *Server) handleGameState(w http.ResponseWriter, r *http.Request) {
 	isDarkSide := s.isRequestDarkSide(r)
 
 	if isDarkSide {
-		w.Write(s.cache.GetDarkState())
+		s.writeState(w, s.cache.GetDarkState())
 	} else {
-		w.Write(s.cache.GetLightState())
+		s.writeState(w, s.cache.GetLightState())
 	}
+}
+
+func (s *Server) writeState(w http.ResponseWriter, data []byte) {
+	var payload map[string]interface{}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		w.Write(data)
+		return
+	}
+	payload["turnDurationSeconds"] = s.cfg.TurnDurationSeconds
+	payload["maxTurns"] = s.cfg.MaxTurns
+	json.NewEncoder(w).Encode(payload)
 }
 
 // POST /order — Submit order (→ 202 Accepted)
@@ -155,6 +176,7 @@ func (s *Server) handleOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	normalizeOrderPayload(&order)
+	s.signalGameStarted()
 
 	// Validate
 	result := s.validator.Validate(order)
@@ -274,6 +296,7 @@ func (s *Server) handleAvailableOrders(w http.ResponseWriter, r *http.Request) {
 // GET /events — SSE stream
 func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 	playerID := r.URL.Query().Get("playerId")
+	s.signalGameStarted()
 
 	// Set SSE headers
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -438,9 +461,11 @@ func (s *Server) handleAnalysisIntercept(w http.ResponseWriter, r *http.Request)
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"status":    "ok",
-		"turn":      s.cache.GetSnapshot().Turn,
-		"timestamp": time.Now().Unix(),
+		"status":              "ok",
+		"turn":                s.cache.GetSnapshot().Turn,
+		"maxTurns":            s.cfg.MaxTurns,
+		"turnDurationSeconds": s.cfg.TurnDurationSeconds,
+		"timestamp":           time.Now().Unix(),
 	})
 }
 

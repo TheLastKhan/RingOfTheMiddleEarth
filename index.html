@@ -239,6 +239,13 @@
     font-size: 1.15rem;
     font-weight: 700;
   }
+  .turn-timer {
+    font-family: 'Cinzel', serif;
+    color: var(--parchment);
+    font-size: 0.86rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+  }
   .player-badge {
     padding: 0.3rem 0.8rem;
     border: 1px solid;
@@ -634,6 +641,7 @@
       <span id="conn-status" style="font-size:0.7rem;color:#666">Disconnected</span>
     </div>
     <div class="turn-display">Turn <span id="turn-number">—</span></div>
+    <div class="turn-timer">Next turn in <span id="next-turn-countdown">waiting</span></div>
     <div id="player-badge-container"></div>
   </div>
 
@@ -715,6 +723,11 @@ const State = {
   selectedOrder:null,
   orderPayload: {},
   sse:          null,
+  maxTurns:     40,
+  turnDuration: 60,
+  nextTurnAt:   null,
+  countdownId:  null,
+  lastSeenTurn: null,
 };
 
 // ══════════════════════════════════════════════════════════
@@ -947,9 +960,17 @@ async function fetchState() {
 }
 
 function handleWorldState(data) {
+  if (data.turnDurationSeconds) State.turnDuration = data.turnDurationSeconds;
+  if (data.maxTurns) State.maxTurns = data.maxTurns;
+
   if (data.turn !== undefined && data.turn !== null) {
+    if (State.lastSeenTurn !== null && data.turn !== State.lastSeenTurn) {
+      logEvent('TurnProcessed', `Turn ${State.lastSeenTurn} resolved. Now playing turn ${data.turn}.`, '');
+    }
     State.currentTurn = data.turn;
+    State.lastSeenTurn = data.turn;
     document.getElementById('turn-number').textContent = data.turn;
+    startTurnCountdown();
   }
 
   if (data.units)   State.units   = data.units;
@@ -969,6 +990,28 @@ function handleWorldState(data) {
 
   renderUnits();
   renderMap();
+}
+
+function startTurnCountdown() {
+  State.nextTurnAt = Date.now() + State.turnDuration * 1000;
+  if (!State.countdownId) {
+    State.countdownId = setInterval(updateTurnCountdown, 1000);
+  }
+  updateTurnCountdown();
+}
+
+function updateTurnCountdown() {
+  const el = document.getElementById('next-turn-countdown');
+  if (!el) return;
+  if (!State.nextTurnAt) {
+    el.textContent = 'waiting';
+    return;
+  }
+  const remaining = Math.max(0, Math.ceil((State.nextTurnAt - Date.now()) / 1000));
+  el.textContent = `${remaining}s`;
+  if (remaining === 0) {
+    el.textContent = 'processing...';
+  }
 }
 
 // ══════════════════════════════════════════════════════════
