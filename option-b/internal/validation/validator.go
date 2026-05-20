@@ -4,6 +4,7 @@ package validation
 
 import (
 	"fmt"
+	"sync"
 
 	"rotr/internal/cache"
 	"rotr/internal/config"
@@ -57,6 +58,7 @@ const (
 type Validator struct {
 	cfg               *config.GameConfig
 	cache             *cache.WorldStateCache
+	mu                sync.Mutex
 	processedThisTurn map[string]bool // unitID → already has order this turn
 }
 
@@ -71,6 +73,8 @@ func NewValidator(cfg *config.GameConfig, c *cache.WorldStateCache) *Validator {
 
 // ResetTurn clears the duplicate tracking for a new turn.
 func (v *Validator) ResetTurn() {
+	v.mu.Lock()
+	defer v.mu.Unlock()
 	v.processedThisTurn = make(map[string]bool)
 }
 
@@ -113,12 +117,9 @@ func (v *Validator) Validate(order Order) ValidationResult {
 	}
 
 	// Rule 8: Duplicate unit order this turn
-	if result := v.rule8Duplicate(order); !result.Valid {
+	if result := v.markUnitOrder(order); !result.Valid {
 		return result
 	}
-
-	// Mark as processed
-	v.processedThisTurn[order.UnitID] = true
 
 	return ValidationResult{Valid: true}
 }
@@ -357,13 +358,17 @@ func (v *Validator) rule7MaiaCooldown(order Order) ValidationResult {
 	return ValidationResult{Valid: true}
 }
 
-func (v *Validator) rule8Duplicate(order Order) ValidationResult {
+func (v *Validator) markUnitOrder(order Order) ValidationResult {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+
 	if v.processedThisTurn[order.UnitID] {
 		return ValidationResult{
 			ErrorCode: ErrDuplicateUnitOrder,
 			ErrorMsg:  fmt.Sprintf("unit %s already has an order this turn", order.UnitID),
 		}
 	}
+	v.processedThisTurn[order.UnitID] = true
 	return ValidationResult{Valid: true}
 }
 

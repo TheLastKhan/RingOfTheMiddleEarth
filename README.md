@@ -15,7 +15,8 @@ Latest verified checks:
 - `docker compose up -d --build` starts the full stack.
 - 3 Go engines, Kafka Streams, 3 Kafka brokers, Schema Registry, nginx, UI, and Zookeeper run together.
 - `/health`, `/analysis/routes`, `/analysis/intercept`, Schema Registry, and pprof endpoints respond.
-- Fault tolerance smoke test passes: stopping `go-engine-2` still leaves nginx health checks successful.
+- Full E2E smoke test covers session replay, duplicate-order concurrency, SSE, and engine failover.
+- Fault tolerance smoke test passes: stopping an engine still allows the game to advance through nginx.
 
 Important honesty note: the project demonstrates app-level duplicate suppression and deterministic GameOver identity, but it does not claim full production-grade transactional Kafka recovery for every crash point.
 
@@ -51,7 +52,7 @@ Shadow wins when:
 
 - Ring Bearer is destroyed/captured by the game logic.
 
-The game ends in a draw if the max turn limit is reached before either side wins.
+Shadow also wins if the max turn limit is reached before Light destroys the ring.
 
 ## Main Services
 
@@ -108,9 +109,7 @@ Invoke-RestMethod "http://localhost/debug/pprof/goroutine?debug=1"
 Fault tolerance smoke test:
 
 ```powershell
-docker compose stop go-engine-2
-Invoke-RestMethod http://localhost/health
-docker compose up -d go-engine-2
+.\scripts\full-e2e-smoke.ps1
 ```
 
 Stop everything:
@@ -159,9 +158,10 @@ docker compose down -v
 | --- | --- |
 | Go combat/router/pipeline/turn logic | `go test ./...` |
 | Kafka Streams 8 validation rules | `scripts/demo-validation-k4.ps1` |
+| E2E gameplay/failover smoke | `scripts/full-e2e-smoke.ps1` |
 | Schema evolution | Schema Registry shows `game.orders.validated-value` versions `1,2` |
 | Session schema | Schema Registry shows `game.session-value` version `1` |
-| Fault tolerance | Stop `go-engine-2`, health still responds through nginx |
+| Fault tolerance | Stop one engine, advance turn through nginx, restarted engine replays `game.session` |
 | pprof | `/debug/pprof/goroutine?debug=1` |
 
 ## Documentation

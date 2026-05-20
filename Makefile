@@ -2,7 +2,7 @@
 # Ring of the Middle Earth — Makefile
 # ═══════════════════════════════════════════════════════
 
-.PHONY: all up down build test test-streams logs clean fault-test demo-1 demo-2 demo-3 demo-validation pprof-10turns check-gameover-idempotency
+.PHONY: all up down build test test-streams logs clean fault-test demo-1 demo-2 demo-3 demo-validation pprof-10turns check-gameover-idempotency full-e2e-smoke
 
 # ── Start all services ──
 up:
@@ -38,6 +38,9 @@ pprof-10turns:
 
 check-gameover-idempotency:
 	powershell -ExecutionPolicy Bypass -File scripts/check-gameover-idempotency.ps1
+
+full-e2e-smoke:
+	powershell -ExecutionPolicy Bypass -File scripts/full-e2e-smoke.ps1
 
 # ── View logs ──
 logs:

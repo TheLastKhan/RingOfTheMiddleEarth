@@ -100,6 +100,14 @@ Tests run: 9, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
+Tam E2E smoke testi:
+
+```powershell
+.\scripts\full-e2e-smoke.ps1
+```
+
+Bu test yeni oyun baslatir, 3 Go engine'in `game.session` uzerinden ayni state'e geldigini kontrol eder, duplicate order concurrency denemesi yapar, turn ilerletir, bir engine'i durdurup oyunun nginx uzerinden devam ettigini dogrular, engine'i geri baslatir ve SSE event akisini kontrol eder.
+
 ## 6. Schema Registry Kontrolu
 
 ```powershell
@@ -152,7 +160,13 @@ Bu script baslangic ve bitis goroutine toplamlarini yazar.
 
 ## 9. Fault Tolerance Testi
 
-Bir Go instance durdur:
+En kapsamli test:
+
+```powershell
+.\scripts\full-e2e-smoke.ps1
+```
+
+Manuel kontrol icin bir Go instance durdur:
 
 ```powershell
 docker compose stop go-engine-2
@@ -165,6 +179,14 @@ Invoke-RestMethod http://localhost/health
 ```
 
 Hala `ok` donmeli.
+
+Oyun state recovery kontrolu icin turn bilgisini dogrula:
+
+```powershell
+Invoke-RestMethod "http://localhost:8080/game/state?playerId=light-player&side=FREE_PEOPLES"
+Invoke-RestMethod "http://localhost:8082/game/state?playerId=light-player&side=FREE_PEOPLES"
+Invoke-RestMethod "http://localhost:8083/game/state?playerId=light-player&side=FREE_PEOPLES"
+```
 
 Geri baslat:
 
@@ -210,6 +232,7 @@ Invoke-RestMethod http://localhost/analysis/routes
 Invoke-RestMethod http://localhost/analysis/intercept
 go test -C option-b ./...
 .\scripts\demo-validation-k4.ps1
+.\scripts\full-e2e-smoke.ps1
 ```
 
 Not: Go surumun `go test -C option-b ./...` desteklemiyorsa klasik sekilde `cd option-b; go test ./...; cd ..` kullan.
