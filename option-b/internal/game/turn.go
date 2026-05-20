@@ -26,6 +26,7 @@ type TurnState struct {
 	Config        *config.GameConfig
 	Graph         *GameGraph
 	GameOver      bool
+	Exposed       bool
 	CurrentOrders []Order
 }
 
@@ -117,6 +118,8 @@ func (tp *TurnProcessor) ProcessTurn(state *TurnState, orders []Order) []GameEve
 	}
 
 	log.Printf("⚙️  Processing turn %d with %d orders", state.Turn, len(orders))
+
+	state.Exposed = false
 
 	// Step 1: Collect and validate orders
 	validOrders := tp.step1CollectOrders(state, orders)
@@ -393,6 +396,14 @@ func (tp *TurnProcessor) step7AutoAdvanceUnits(state *TurnState) []GameEvent {
 				"trueRegion": destination,
 				"turn":       state.Turn,
 			}))
+			if path.SurveillanceLevel >= 1 && state.Turn > tp.cfg.HiddenUntilTurn {
+				state.Exposed = true
+				events = append(events, makeEvent("game.ring.detection", "", map[string]interface{}{
+					"pathId": nextPathID,
+					"turn":   state.Turn,
+					"type":   "RING_BEARER_SPOTTED",
+				}))
+			}
 		}
 	}
 
@@ -586,6 +597,7 @@ func (tp *TurnProcessor) step12Detection(state *TurnState) []GameEvent {
 	result := CheckDetection(tp.graph, input)
 
 	if result.Detected {
+		state.Exposed = true
 		state.DarkView.LastDetectedRegion = result.Region
 		state.DarkView.LastDetectedTurn = state.Turn
 		events = append(events, makeEvent("game.ring.detection", "", map[string]interface{}{
@@ -617,6 +629,11 @@ func (tp *TurnProcessor) step13CheckWinConditions(state *TurnState) []GameEvent 
 				events = append(events, makeGameOverEvent("FREE_PEOPLES", "Ring destroyed at Mount Doom", state.Turn))
 				return events
 			}
+			if state.Exposed && hasActiveShadowUnit(state, unit.CurrentRegion) {
+				state.GameOver = true
+				events = append(events, makeGameOverEvent("SHADOW", "Ring Bearer exposed and intercepted", state.Turn))
+				return events
+			}
 		}
 	}
 
@@ -629,10 +646,10 @@ func (tp *TurnProcessor) step13CheckWinConditions(state *TurnState) []GameEvent 
 		}
 	}
 
-	// Win 3: Max turns exceeded → Shadow wins
+	// Draw: max turns reached with no winner.
 	if state.Turn >= tp.cfg.MaxTurns {
 		state.GameOver = true
-		events = append(events, makeGameOverEvent("SHADOW", "Maximum turns exceeded - Ring Bearer failed to reach Mount Doom", state.Turn))
+		events = append(events, makeGameOverEvent("DRAW", "Maximum turns reached with no winner", state.Turn))
 		return events
 	}
 
@@ -665,6 +682,7 @@ func MakeWorldSnapshotEvent(state *TurnState) GameEvent {
 		"units":     units,
 		"regions":   regions,
 		"paths":     paths,
+		"exposed":   state.Exposed,
 		"timestamp": time.Now().UnixMilli(),
 	}
 	return makeEvent("game.broadcast", "", snapshot)
@@ -678,6 +696,7 @@ func InitTurnStateFromJSON(cfg *config.GameConfig, graph *GameGraph, data []byte
 		Units     []UnitRuntime   `json:"units"`
 		Regions   []RegionRuntime `json:"regions"`
 		Paths     []PathRuntime   `json:"paths"`
+		Exposed   bool            `json:"exposed"`
 		Timestamp int64           `json:"timestamp"`
 	}
 	if err := json.Unmarshal(data, &snap); err != nil {
@@ -690,6 +709,7 @@ func InitTurnStateFromJSON(cfg *config.GameConfig, graph *GameGraph, data []byte
 	if snap.Turn > 0 {
 		state.Turn = snap.Turn
 	}
+	state.Exposed = snap.Exposed
 	for i := range snap.Units {
 		unit := snap.Units[i]
 		if unit.Config.ID == "" {

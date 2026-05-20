@@ -46,6 +46,19 @@ func TestGameOverEventHasDeterministicIdentity(t *testing.T) {
 	}
 }
 
+func TestMaxTurnsEmitsDraw(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.MaxTurns = 1
+	graph := NewGameGraph(cfg)
+	processor := NewTurnProcessor(cfg, graph)
+	state := InitTurnState(cfg, graph)
+
+	events := processor.ProcessTurn(state, nil)
+	if countGameOverByWinner(events, "DRAW") != 1 {
+		t.Fatalf("max turn emitted events %v, want DRAW game over", gameOverPayloads(events))
+	}
+}
+
 func TestDestroyRingRequiresOrderAndNoShadowAtMountDoom(t *testing.T) {
 	cfg := config.DefaultConfig()
 	graph := NewGameGraph(cfg)
@@ -70,6 +83,54 @@ func TestDestroyRingRequiresOrderAndNoShadowAtMountDoom(t *testing.T) {
 	success := processor.ProcessTurn(successState, []Order{{OrderType: "DESTROY_RING", UnitID: "ring-bearer"}})
 	if countGameOver(success) != 1 {
 		t.Fatalf("valid DESTROY_RING emitted %d GAME_OVER events, want 1", countGameOver(success))
+	}
+}
+
+func TestRingBearerSpottedBySurveillanceAfterHiddenTurns(t *testing.T) {
+	cfg := config.DefaultConfig()
+	graph := NewGameGraph(cfg)
+	processor := NewTurnProcessor(cfg, graph)
+	state := InitTurnState(cfg, graph)
+	state.Turn = cfg.HiddenUntilTurn
+	state.Paths["shire-to-bree"].SurveillanceLevel = 1
+
+	hiddenEvents := processor.ProcessTurn(state, []Order{{
+		OrderType: "ASSIGN_ROUTE",
+		UnitID:    "ring-bearer",
+		PathIDs:   []string{"shire-to-bree"},
+	}})
+	if countRingDetection(hiddenEvents) != 0 {
+		t.Fatalf("hidden turn emitted ring detection event")
+	}
+
+	state = InitTurnState(cfg, graph)
+	state.Turn = cfg.HiddenUntilTurn + 1
+	state.Paths["shire-to-bree"].SurveillanceLevel = 1
+	visibleEvents := processor.ProcessTurn(state, []Order{{
+		OrderType: "ASSIGN_ROUTE",
+		UnitID:    "ring-bearer",
+		PathIDs:   []string{"shire-to-bree"},
+	}})
+	if countRingDetection(visibleEvents) != 1 {
+		t.Fatalf("surveilled path emitted %d ring detection events, want 1", countRingDetection(visibleEvents))
+	}
+	if !state.Exposed {
+		t.Fatalf("surveilled path did not mark Ring Bearer exposed")
+	}
+}
+
+func TestExposedRingBearerWithShadowUnitWinsForShadow(t *testing.T) {
+	cfg := config.DefaultConfig()
+	graph := NewGameGraph(cfg)
+	processor := NewTurnProcessor(cfg, graph)
+	state := InitTurnState(cfg, graph)
+	state.Units["ring-bearer"].CurrentRegion = "bree"
+	state.Units["witch-king"].CurrentRegion = "bree"
+	state.Exposed = true
+
+	events := processor.step13CheckWinConditions(state)
+	if countGameOverByWinner(events, "SHADOW") != 1 {
+		t.Fatalf("exposed intercepted Ring Bearer emitted events %v, want SHADOW game over", gameOverPayloads(events))
 	}
 }
 
@@ -125,4 +186,24 @@ func countGameOverByWinner(events []GameEvent, winner string) int {
 		}
 	}
 	return count
+}
+
+func countRingDetection(events []GameEvent) int {
+	count := 0
+	for _, event := range events {
+		if event.Topic == "game.ring.detection" {
+			count++
+		}
+	}
+	return count
+}
+
+func gameOverPayloads(events []GameEvent) []string {
+	var payloads []string
+	for _, event := range events {
+		if event.Topic == "game.broadcast" && strings.Contains(string(event.Data), `"GAME_OVER"`) {
+			payloads = append(payloads, string(event.Data))
+		}
+	}
+	return payloads
 }

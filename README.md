@@ -52,7 +52,7 @@ Shadow wins when:
 
 - Ring Bearer is destroyed/captured by the game logic.
 
-Shadow also wins if the max turn limit is reached before Light destroys the ring.
+The game ends in a draw if the max turn limit is reached before either side wins.
 
 ## Main Services
 
