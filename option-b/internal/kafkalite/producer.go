@@ -15,25 +15,49 @@ import (
 
 // Producer writes plain JSON messages to a Kafka topic without external deps.
 type Producer struct {
-	broker string
+	brokers []string
 }
 
 // NewProducer creates a producer using the first broker in a comma list.
 func NewProducer(brokers string) *Producer {
-	broker := "kafka-1:29092"
+	brokerList := []string{"kafka-1:29092"}
 	if brokers != "" {
-		broker = strings.TrimSpace(strings.Split(brokers, ",")[0])
+		brokerList = nil
+		for _, broker := range strings.Split(brokers, ",") {
+			broker = strings.TrimSpace(broker)
+			if broker != "" {
+				brokerList = append(brokerList, broker)
+			}
+		}
 	}
-	return &Producer{broker: broker}
+	if len(brokerList) == 0 {
+		brokerList = []string{"kafka-1:29092"}
+	}
+	return &Producer{brokers: brokerList}
 }
 
 // Produce sends one message to partition 0 with acks=1.
 func (p *Producer) Produce(topic, key string, value []byte) error {
-	if p == nil || p.broker == "" {
+	if p == nil || len(p.brokers) == 0 {
 		return errors.New("kafka broker is not configured")
 	}
 
-	conn, err := net.DialTimeout("tcp", p.broker, 5*time.Second)
+	var lastErr error
+	for _, broker := range p.brokers {
+		if err := p.produceToBroker(broker, topic, key, value); err != nil {
+			lastErr = err
+			continue
+		}
+		return nil
+	}
+	if lastErr != nil {
+		return lastErr
+	}
+	return errors.New("kafka produce failed")
+}
+
+func (p *Producer) produceToBroker(broker, topic, key string, value []byte) error {
+	conn, err := net.DialTimeout("tcp", broker, 5*time.Second)
 	if err != nil {
 		return err
 	}
