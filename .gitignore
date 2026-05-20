@@ -8,3 +8,4 @@ target/
 .DS_Store
 Thumbs.db
 _pdfprobe.cs
+.tmp/

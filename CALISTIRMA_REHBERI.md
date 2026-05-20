@@ -116,6 +116,32 @@ Transactional GameOver exactly-once testi:
 
 Bu test Light victory senaryosunu oynatir, `read_committed` Kafka consumer ile `game.broadcast` icindeki GameOver sayisinin sadece 1 arttigini ve oyun bittikten sonra ekstra turn advance cagrilarinin yeni GameOver uretmedigini dogrular.
 
+Chaos/soak hardening testi:
+
+```powershell
+.\scripts\chaos-soak-smoke.ps1
+```
+
+Bu test yeni oyun baslatir, Ring Bearer rotasi atar, her turda farkli bir Go engine'i durdurur, turn'u nginx uzerinden ilerletir, kalan engine'lerin ayni state'e geldigini kontrol eder, durdurulan engine'i geri baslatir ve `game.session` replay ile tekrar ayni state'e yakaladigini dogrular.
+
+Daha uzun production-hardening kosusu icin:
+
+```powershell
+.\scripts\chaos-soak-smoke.ps1 -Rounds 20 -StopSeconds 3
+```
+
+Browser/UI smoke testi:
+
+```powershell
+.\scripts\browser-smoke.ps1
+```
+
+Bu test UI HTML kontratini kontrol eder: login ekrani, map canvas, connection status, manual turn butonu ve SSE client wiring sayfada var mi diye bakar. Makinede Playwright CLI varsa `.tmp` altina Light/Dark screenshot da alir. Screenshot zorunlu olsun istersen:
+
+```powershell
+.\scripts\browser-smoke.ps1 -RequireScreenshot
+```
+
 ## 6. Schema Registry Kontrolu
 
 ```powershell
@@ -242,6 +268,8 @@ go test -C option-b ./...
 .\scripts\demo-validation-k4.ps1
 .\scripts\full-e2e-smoke.ps1
 .\scripts\check-gameover-idempotency.ps1
+.\scripts\chaos-soak-smoke.ps1
+.\scripts\browser-smoke.ps1
 ```
 
 Not: Go surumun `go test -C option-b ./...` desteklemiyorsa klasik sekilde `cd option-b; go test ./...; cd ..` kullan.

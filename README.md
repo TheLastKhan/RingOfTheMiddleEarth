@@ -13,6 +13,8 @@ Latest verified checks:
 - `go test ./...` passes.
 - `scripts/demo-validation-k4.ps1` passes Kafka Streams validation tests: 9 tests, 0 failures.
 - `scripts/check-gameover-idempotency.ps1` verifies committed transactional GameOver output increments exactly once.
+- `scripts/chaos-soak-smoke.ps1` runs a configurable engine stop/start soak loop and checks replay convergence.
+- `scripts/browser-smoke.ps1` checks the UI contract and, when Playwright CLI is available, captures Light/Dark screenshots.
 - `docker compose up -d --build` starts the full stack.
 - 3 Go engines, Kafka Streams, 3 Kafka brokers, Schema Registry, nginx, UI, and Zookeeper run together.
 - `/health`, `/analysis/routes`, `/analysis/intercept`, Schema Registry, and pprof endpoints respond.
@@ -119,6 +121,20 @@ Transactional GameOver exactly-once smoke test:
 .\scripts\check-gameover-idempotency.ps1
 ```
 
+Chaos/soak hardening smoke:
+
+```powershell
+.\scripts\chaos-soak-smoke.ps1
+.\scripts\chaos-soak-smoke.ps1 -Rounds 20 -StopSeconds 3
+```
+
+Browser/UI smoke:
+
+```powershell
+.\scripts\browser-smoke.ps1
+.\scripts\browser-smoke.ps1 -RequireScreenshot
+```
+
 Stop everything:
 
 ```powershell
@@ -167,6 +183,8 @@ docker compose down -v
 | Kafka Streams 8 validation rules | `scripts/demo-validation-k4.ps1` |
 | E2E gameplay/failover smoke | `scripts/full-e2e-smoke.ps1` |
 | Transactional GameOver exactly-once smoke | `scripts/check-gameover-idempotency.ps1` |
+| Chaos/soak hardening | `scripts/chaos-soak-smoke.ps1` |
+| Browser/UI smoke | `scripts/browser-smoke.ps1` |
 | Schema evolution | Schema Registry shows `game.orders.validated-value` versions `1,2` |
 | Session schema | Schema Registry shows `game.session-value` version `1` |
 | Fault tolerance | Stop one engine, advance turn through nginx, restarted engine replays `game.session` |

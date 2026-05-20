@@ -19,6 +19,13 @@ cd ..
 .\scripts\demo-validation-k4.ps1
 ```
 
+Production hardening smoke gostermek istersen:
+
+```powershell
+.\scripts\chaos-soak-smoke.ps1
+.\scripts\browser-smoke.ps1
+```
+
 Beklenen sonuc:
 
 - Tum ana container'lar `Up` gorunur.

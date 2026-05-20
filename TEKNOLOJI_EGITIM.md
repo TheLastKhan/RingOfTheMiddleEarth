@@ -130,7 +130,7 @@ Sinir:
 
 - Runtime serving cache bellektedir.
 - `game.session` replay ile engine restart/failover demo seviyesinde toparlanir.
-- Tum olasi crash noktalarini kapsayan uzun sureli kaos testi production hardening olarak kalir.
+- Tum olasi crash noktalarini kapsayan exhaustive kaos matrisi production hardening olarak kalir; repo icinde kisa ve uzatilabilir chaos/soak smoke testi vardir: `scripts/chaos-soak-smoke.ps1`.
 
 ## Testler
 
