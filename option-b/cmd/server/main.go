@@ -44,8 +44,10 @@ func main() {
 	turnState := game.InitTurnState(cfg, graph)
 	pendingOrders := make([]game.Order, 0)
 	producer := kafkalite.NewProducer(os.Getenv("KAFKA_BROKERS"))
+	sessionConsumer := kafkalite.NewConsumer(os.Getenv("KAFKA_BROKERS"))
 
 	kafkaConsumerCh := make(chan router.Event, 100)
+	sessionReplayCh := make(chan []byte, 10)
 	newConnectionCh := make(chan string, 10)
 	disconnectCh := make(chan string, 10)
 	analysisRequestCh := make(chan string, 10)
@@ -72,22 +74,33 @@ func main() {
 
 	log.Printf("Game engine ready on port %s", port)
 
+	go pollSessionSnapshots(ctx, sessionConsumer, sessionReplayCh)
+
+	var lastSessionTimestamp int64
+
+	publishEvent := func(event game.GameEvent) {
+		routed := router.Event{Topic: event.Topic, Key: event.Key, Data: event.Data}
+		eventRouter.Route(routed)
+		if err := producer.Produce(event.Topic, event.Key, event.Data); err != nil {
+			log.Printf("Kafka event produce failed topic=%s: %v", event.Topic, err)
+		}
+		if event.Topic == "game.broadcast" && isWorldState(event.Data) {
+			if ts := worldStateTimestamp(event.Data); ts > lastSessionTimestamp {
+				lastSessionTimestamp = ts
+			}
+			if err := producer.Produce("game.session", "session", event.Data); err != nil {
+				log.Printf("Kafka session produce failed: %v", err)
+			}
+		}
+	}
+
 	processTurn := func(reason string) {
 		currentTurn := worldCache.GetSnapshot().Turn
 		log.Printf("Turn %d ended by %s with %d pending orders", currentTurn, reason, len(pendingOrders))
 		events := turnProcessor.ProcessTurn(turnState, pendingOrders)
 		pendingOrders = pendingOrders[:0]
 		for _, event := range events {
-			routed := router.Event{Topic: event.Topic, Key: event.Key, Data: event.Data}
-			eventRouter.Route(routed)
-			if err := producer.Produce(event.Topic, event.Key, event.Data); err != nil {
-				log.Printf("Kafka event produce failed topic=%s: %v", event.Topic, err)
-			}
-			if event.Topic == "game.broadcast" && isWorldState(event.Data) {
-				if err := producer.Produce("game.session", "session", event.Data); err != nil {
-					log.Printf("Kafka session produce failed: %v", err)
-				}
-			}
+			publishEvent(event)
 		}
 		server.ResetTurn()
 	}
@@ -105,6 +118,24 @@ func main() {
 		select {
 		case msg := <-kafkaConsumerCh:
 			eventRouter.Route(msg)
+
+		case data := <-sessionReplayCh:
+			restored, ts, err := game.InitTurnStateFromJSON(cfg, graph, data)
+			if err != nil {
+				log.Printf("Session replay error: %v", err)
+				break
+			}
+			if restored == nil || ts <= lastSessionTimestamp {
+				break
+			}
+			turnState = restored
+			pendingOrders = pendingOrders[:0]
+			if err := worldCache.UpdateFromJSON(data); err != nil {
+				log.Printf("Session cache update error: %v", err)
+			}
+			lastSessionTimestamp = ts
+			server.ResetTurn()
+			log.Printf("Session replay restored turn %d from Kafka", turnState.Turn)
 
 		case playerID := <-newConnectionCh:
 			log.Printf("Player connected: %s", playerID)
@@ -125,6 +156,7 @@ func main() {
 			worldCache.ResetFromConfig(cfg)
 			pendingOrders = pendingOrders[:0]
 			server.ResetTurn()
+			publishEvent(game.MakeWorldSnapshotEvent(turnState))
 			gameStarted = true
 			turnTimer.Reset(turnDuration)
 			log.Printf("New game started: turn reset to 1, first turn ends in %s", turnDuration)
@@ -189,6 +221,49 @@ func isWorldState(data []byte) bool {
 		return false
 	}
 	return event.Type == "WORLD_STATE"
+}
+
+func worldStateTimestamp(data []byte) int64 {
+	var event struct {
+		Timestamp int64 `json:"timestamp"`
+	}
+	if err := json.Unmarshal(data, &event); err != nil {
+		return 0
+	}
+	return event.Timestamp
+}
+
+func pollSessionSnapshots(ctx context.Context, consumer *kafkalite.Consumer, out chan<- []byte) {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	var nextOffset int64
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			messages, err := consumer.FetchAll("game.session", 0, nextOffset)
+			if err != nil {
+				log.Printf("Kafka session fetch failed: %v", err)
+				continue
+			}
+			if len(messages) == 0 {
+				continue
+			}
+			latest := messages[len(messages)-1]
+			if len(latest.Value) == 0 {
+				nextOffset = latest.Offset + 1
+				continue
+			}
+			nextOffset = latest.Offset + 1
+			select {
+			case out <- latest.Value:
+			default:
+				log.Printf("Kafka session replay channel full; skipping offset %d", latest.Offset)
+			}
+		}
+	}
 }
 
 func toGameOrder(order validation.Order) game.Order {

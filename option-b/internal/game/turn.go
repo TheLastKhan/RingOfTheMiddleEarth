@@ -640,6 +640,12 @@ func (tp *TurnProcessor) step13CheckWinConditions(state *TurnState) []GameEvent 
 }
 
 func (tp *TurnProcessor) produceWorldSnapshot(state *TurnState) GameEvent {
+	return MakeWorldSnapshotEvent(state)
+}
+
+// MakeWorldSnapshotEvent serializes the mutable runtime state so another engine
+// can rebuild both its read cache and turn processor state from Kafka.
+func MakeWorldSnapshotEvent(state *TurnState) GameEvent {
 	units := make([]*UnitRuntime, 0, len(state.Units))
 	for _, unit := range state.Units {
 		units = append(units, unit)
@@ -662,6 +668,50 @@ func (tp *TurnProcessor) produceWorldSnapshot(state *TurnState) GameEvent {
 		"timestamp": time.Now().UnixMilli(),
 	}
 	return makeEvent("game.broadcast", "", snapshot)
+}
+
+// InitTurnStateFromJSON rebuilds mutable turn state from a WORLD_STATE snapshot.
+func InitTurnStateFromJSON(cfg *config.GameConfig, graph *GameGraph, data []byte) (*TurnState, int64, error) {
+	var snap struct {
+		Type      string          `json:"type"`
+		Turn      int             `json:"turn"`
+		Units     []UnitRuntime   `json:"units"`
+		Regions   []RegionRuntime `json:"regions"`
+		Paths     []PathRuntime   `json:"paths"`
+		Timestamp int64           `json:"timestamp"`
+	}
+	if err := json.Unmarshal(data, &snap); err != nil {
+		return nil, 0, err
+	}
+	if snap.Type != "" && snap.Type != "WORLD_STATE" {
+		return nil, 0, nil
+	}
+	state := InitTurnState(cfg, graph)
+	if snap.Turn > 0 {
+		state.Turn = snap.Turn
+	}
+	for i := range snap.Units {
+		unit := snap.Units[i]
+		if unit.Config.ID == "" {
+			unit.Config = cfg.UnitsByID[unit.ID]
+		}
+		u := unit
+		state.Units[u.ID] = &u
+	}
+	for i := range snap.Regions {
+		region := snap.Regions[i]
+		r := region
+		state.Regions[r.ID] = &r
+	}
+	for i := range snap.Paths {
+		path := snap.Paths[i]
+		p := path
+		state.Paths[p.ID] = &p
+	}
+	if state.Turn >= cfg.MaxTurns {
+		state.GameOver = true
+	}
+	return state, snap.Timestamp, nil
 }
 
 // ═══════════════════════════════════════════════════════
