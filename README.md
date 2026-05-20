@@ -12,13 +12,14 @@ Latest verified checks:
 
 - `go test ./...` passes.
 - `scripts/demo-validation-k4.ps1` passes Kafka Streams validation tests: 9 tests, 0 failures.
+- `scripts/check-gameover-idempotency.ps1` verifies committed transactional GameOver output increments exactly once.
 - `docker compose up -d --build` starts the full stack.
 - 3 Go engines, Kafka Streams, 3 Kafka brokers, Schema Registry, nginx, UI, and Zookeeper run together.
 - `/health`, `/analysis/routes`, `/analysis/intercept`, Schema Registry, and pprof endpoints respond.
 - Full E2E smoke test covers session replay, duplicate-order concurrency, SSE, and engine failover.
 - Fault tolerance smoke test passes: stopping an engine still allows the game to advance through nginx.
 
-Important honesty note: the project demonstrates app-level duplicate suppression and deterministic GameOver identity, but it does not claim full production-grade transactional Kafka recovery for every crash point.
+Important honesty note: GameOver is produced through a Kafka transactional producer and verified with a `read_committed` smoke test. The project still treats exhaustive crash-matrix testing for every possible side-effect boundary as production hardening.
 
 ## Quick Start
 
@@ -112,6 +113,12 @@ Fault tolerance smoke test:
 .\scripts\full-e2e-smoke.ps1
 ```
 
+Transactional GameOver exactly-once smoke test:
+
+```powershell
+.\scripts\check-gameover-idempotency.ps1
+```
+
 Stop everything:
 
 ```powershell
@@ -159,6 +166,7 @@ docker compose down -v
 | Go combat/router/pipeline/turn logic | `go test ./...` |
 | Kafka Streams 8 validation rules | `scripts/demo-validation-k4.ps1` |
 | E2E gameplay/failover smoke | `scripts/full-e2e-smoke.ps1` |
+| Transactional GameOver exactly-once smoke | `scripts/check-gameover-idempotency.ps1` |
 | Schema evolution | Schema Registry shows `game.orders.validated-value` versions `1,2` |
 | Session schema | Schema Registry shows `game.session-value` version `1` |
 | Fault tolerance | Stop one engine, advance turn through nginx, restarted engine replays `game.session` |

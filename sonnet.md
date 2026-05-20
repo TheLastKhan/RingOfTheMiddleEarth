@@ -19,8 +19,8 @@ Guncel source of truth icin su dosyalara bak:
 - Go engine HTTP, SSE, turn processing, side-specific state ve demo API'lerini tasir.
 - Kafka Streams validation ve route-risk enrichment icin kullanilir.
 - Bilgi asimetrisi en kritik oyun kuralidir: Light Ring Bearer konumunu bilir, Dark dogrudan bilmez.
-- `game.session` compacted topic son snapshot'i tutar, ancak Go runtime cache'in full replay recovery'si production hardening olarak kalir.
-- GameOver icin uygulama seviyesinde duplicate suppression vardir; tum crash noktalarini kapsayan transactional producer iddiasi yoktur.
+- `game.session` compacted topic son snapshot'i tutar ve Go engine restart/failover demo seviyesinde buradan toparlanir.
+- GameOver icin uygulama seviyesinde duplicate suppression ve franz-go tabanli transactional producer vardir; exhaustive chaos testing production hardening olarak kalir.
 
 ## Neden Kisaltildi?
 
@@ -29,6 +29,6 @@ Eski export icinde:
 - Mojibake karakterler vardi.
 - Henuz yazilmamis dosyalar "hazir" gibi anlatiliyordu.
 - Bazi komutlar ve Make target'lari bugunku repo ile uyusmuyordu.
-- "Tum state Kafka KTable'da" ve "Go producer idempotent transactional" gibi fazla guclu iddialar geciyordu.
+- "Tum state Kafka KTable'da" gibi fazla guclu iddialar geciyordu.
 
 Bu nedenle belge, resmi teslim dokumani yerine sadece arsiv notu olarak tutuldu.

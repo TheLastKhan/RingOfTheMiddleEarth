@@ -6,7 +6,7 @@ This repository implements **Option B: Go + Kafka**.
 
 Go is used for the HTTP API, SSE fan-out, turn processing, validation support, route/intercept analysis, and game-state cache. Kafka provides the shared event log and durable integration surface between Go engines, Kafka Streams, Schema Registry, and the UI.
 
-The main tradeoff is deliberate: the demo favors a compact, inspectable Go implementation with Kafka-backed topics and snapshots over a heavier fully transactional game-state replay engine. The current system produces session snapshots to the compacted `game.session` topic and uses app-level duplicate guards for terminal events.
+The main tradeoff is deliberate: the demo favors a compact, inspectable Go implementation with Kafka-backed topics and snapshots over a heavier full replay engine. The current system produces session snapshots to the compacted `game.session` topic and sends terminal GameOver events through a Kafka transactional producer with deterministic event identity.
 
 ## Runtime Services
 
@@ -95,9 +95,9 @@ The system is fault tolerant enough for the term-project demo:
 - Nginx continues routing when one Go engine is stopped.
 - Kafka keeps order/event/session topics durable.
 - `game.session` is compacted and receives the latest world snapshot.
-- GameOver emission has an application-level duplicate guard.
+- GameOver emission uses a transactional Kafka producer and an application-level duplicate guard.
 
-The current implementation is not a full production transactional replay engine. A crash exactly between all possible side effects is not proven with a transactional Kafka producer in Go, and Go engine restart recovery does not yet rebuild every in-memory structure exclusively from Kafka replay. Those are the main production-hardening boundaries.
+The current implementation is not a full production replay engine for every possible side-effect boundary. GameOver has a transactional producer and a `read_committed` smoke test, while exhaustive crash-matrix testing remains production hardening.
 
 ## Schema Evolution
 
@@ -119,6 +119,7 @@ Existing V1 consumers can continue reading because the V2 fields have defaults. 
 - `game.orders.validated-value` versions `[1,2]` and `game.session-value` version `[1]` were present.
 - `/health`, `/analysis/routes`, `/analysis/intercept`, and `/debug/pprof/goroutine?debug=1` responded.
 - Fault tolerance smoke test passed: after stopping `go-engine-2`, 5 of 5 nginx `/health` requests succeeded.
+- `scripts/check-gameover-idempotency.ps1` passed: a Light victory added exactly one committed GameOver record, and extra turn advances did not add another.
 
 ## LLM Usage Log
 
@@ -138,7 +139,7 @@ The project-specific rules, map data, game flow, and implementation decisions we
 | --- | --- |
 | K4 validation rules | `kafka/streams/src/test/java/rotr/streams/OrderValidatorTest.java` covers all 8 error-code cases. `scripts/demo-validation-k4.ps1` runs those tests through Maven/Docker. |
 | K5 route risk enrichment | `RouteRiskEnricher` attaches `routeRiskScore`, `threatenedPaths`, and `blockedPaths`; `/analysis/routes` also exposes ranked route risk in the UI/API. |
-| K6 GameOver exactly once | `TestProcessTurnEmitsGameOverOnce` proves app-level duplicate suppression. GameOver records use deterministic event identity and stable keying in the Go win-condition helper. Full Kafka transaction crash proof remains production hardening. |
+| K6 GameOver exactly once | GameOver records use deterministic event identity, stable keying, app-level duplicate suppression, and `kafkalite.TransactionalProducer` backed by franz-go transactions. `scripts/check-gameover-idempotency.ps1` verifies committed GameOver output increments exactly once. |
 | B2 fault tolerance | `docker compose stop go-engine-2` followed by repeated `GET /health` through nginx verifies surviving engines keep serving. |
 | B7 information hiding | `router_test.go` verifies side-specific routing; Dark state strips Ring Bearer region. |
 | B8 Go pipelines | `pipeline1_test.go` and `pipeline2_test.go` verify route risk and interception outputs. |
@@ -153,4 +154,4 @@ The project-specific rules, map data, game flow, and implementation decisions we
 | Map fidelity | Compare canvas node names, colors, terrain icons, legends, and path styles with SVG. | Local file inspection and targeted UI edits. | Accepted matching names/colors/icons; avoided broad redesign. |
 | Gameplay debugging | Explain Reconnecting/SSE, side ownership errors, and localhost stale build behavior. | Runtime checks and Docker rebuild guidance. | Fixed backend connectivity and validation issues where needed. |
 | Rubric gap analysis | Identify unfinished requirements from `TermProject_RingOfTheMiddleEarth.md`. | Checklist against K/B rubric items. | Accepted route/intercept, session, GameOver, pprof, and docs work; documented production limits honestly. |
-| Remaining-gap completion | Complete K4/K6/B2/B9/B11 evidence. | Tests, scripts, architecture appendix, and deterministic GameOver identity. | Did not falsely claim full transactional Kafka crash proof; recorded it as production hardening. |
+| Remaining-gap completion | Complete K4/K6/B2/B9/B11 evidence. | Tests, scripts, architecture appendix, transactional GameOver producer, and deterministic GameOver identity. | Kept exhaustive crash-matrix proof scoped as production hardening. |

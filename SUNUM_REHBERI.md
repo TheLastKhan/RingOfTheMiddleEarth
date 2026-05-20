@@ -102,7 +102,7 @@ Event router ve API serializer tarafinda. Light gercek Ring Bearer konumunu alab
 Topology 1 raw order validation yapar. Topology 2 route emirlerine route-risk enrichment ekler. Streams ayarlari `EXACTLY_ONCE_V2` kullanir.
 
 **Exactly-once iddiasi ne kadar guclu?**
-Kafka Streams tarafinda exactly-once v2 kullaniliyor. Go tarafinda GameOver icin uygulama seviyesinde duplicate guard ve deterministik identity/key var. Tum crash noktalarini kapsayan production-grade transactional producer kaniti yok; bu kisim mimari belgede acikca risk olarak yazildi.
+Kafka Streams tarafinda exactly-once v2 kullaniliyor. Go tarafinda GameOver, franz-go tabanli transactional producer ile `game.broadcast` topic'ine yaziliyor. `scripts/check-gameover-idempotency.ps1`, `read_committed` consumer ile GameOver sayisinin sadece 1 arttigini ve ekstra turn advance sonrasi tekrar uretim olmadigini dogrular.
 
 **State tamamen Kafka'dan mi rebuild oluyor?**
 Demo icin `game.session` snapshot'i var ve state Kafka'da gorunur. Go engine runtime cache'i hala bellekte calisir; restart sonrasi tam world-state replay production seviyesinde degil.

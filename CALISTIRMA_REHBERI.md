@@ -8,7 +8,7 @@ Gerekli araclar:
 
 - Docker Desktop
 - Docker Compose v2
-- Go 1.22+ Go testleri icin
+- Go 1.25+ Go testleri icin
 - Git
 
 Docker Desktop acik olmali. Kontrol:
@@ -107,6 +107,14 @@ Tam E2E smoke testi:
 ```
 
 Bu test yeni oyun baslatir, 3 Go engine'in `game.session` uzerinden ayni state'e geldigini kontrol eder, duplicate order concurrency denemesi yapar, turn ilerletir, bir engine'i durdurup oyunun nginx uzerinden devam ettigini dogrular, engine'i geri baslatir ve SSE event akisini kontrol eder.
+
+Transactional GameOver exactly-once testi:
+
+```powershell
+.\scripts\check-gameover-idempotency.ps1
+```
+
+Bu test Light victory senaryosunu oynatir, `read_committed` Kafka consumer ile `game.broadcast` icindeki GameOver sayisinin sadece 1 arttigini ve oyun bittikten sonra ekstra turn advance cagrilarinin yeni GameOver uretmedigini dogrular.
 
 ## 6. Schema Registry Kontrolu
 
@@ -233,6 +241,7 @@ Invoke-RestMethod http://localhost/analysis/intercept
 go test -C option-b ./...
 .\scripts\demo-validation-k4.ps1
 .\scripts\full-e2e-smoke.ps1
+.\scripts\check-gameover-idempotency.ps1
 ```
 
 Not: Go surumun `go test -C option-b ./...` desteklemiyorsa klasik sekilde `cd option-b; go test ./...; cd ..` kullan.

@@ -64,9 +64,9 @@ Topology 2: route-risk enrichment
 - `routeRiskScore`, `threatenedPaths`, `blockedPaths` gibi V2 alanlarini ekler.
 - Schema evolution icin yeni alanlar nullable/default degerlidir.
 
-Not: Kafka Streams `EXACTLY_ONCE_V2` ile calisir. Go tarafindaki lightweight
-Kafka bridge ise Confluent transactional producer degildir; bu sinir mimari
-belgede bilerek acik tutulur.
+Not: Kafka Streams `EXACTLY_ONCE_V2` ile calisir. Go tarafinda normal eventler
+hafif producer ile yazilir; GameOver gibi terminal eventler ise franz-go
+tabanli transactional producer ile `read_committed` olarak dogrulanir.
 
 ## Go Tarafi
 
@@ -129,8 +129,8 @@ Demo seviyesinde fault tolerance:
 Sinir:
 
 - Runtime serving cache bellektedir.
-- Full production replay/recovery henuz tum in-memory yapilari Kafka'dan bastan kuracak seviyede degildir.
-- Go producer icin tum crash noktalarini kapsayan transactional proof yoktur.
+- `game.session` replay ile engine restart/failover demo seviyesinde toparlanir.
+- Tum olasi crash noktalarini kapsayan uzun sureli kaos testi production hardening olarak kalir.
 
 ## Testler
 

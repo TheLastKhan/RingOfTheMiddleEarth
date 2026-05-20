@@ -44,6 +44,15 @@ func main() {
 	turnState := game.InitTurnState(cfg, graph)
 	pendingOrders := make([]game.Order, 0)
 	producer := kafkalite.NewProducer(os.Getenv("KAFKA_BROKERS"))
+	instanceID := os.Getenv("INSTANCE_ID")
+	if instanceID == "" {
+		instanceID = "local"
+	}
+	gameOverProducer, err := kafkalite.NewTransactionalProducer(os.Getenv("KAFKA_BROKERS"), "rotr-gameover-"+instanceID)
+	if err != nil {
+		log.Fatalf("Transactional Kafka producer error: %v", err)
+	}
+	defer gameOverProducer.Close()
 	sessionConsumer := kafkalite.NewConsumer(os.Getenv("KAFKA_BROKERS"))
 
 	kafkaConsumerCh := make(chan router.Event, 100)
@@ -80,6 +89,15 @@ func main() {
 
 	publishEvent := func(event game.GameEvent) {
 		routed := router.Event{Topic: event.Topic, Key: event.Key, Data: event.Data}
+		if isGameOver(event.Data) {
+			if err := gameOverProducer.ProduceTransaction(context.Background(), event.Topic, event.Key, event.Data); err != nil {
+				log.Printf("Kafka transactional GameOver produce failed: %v", err)
+				return
+			}
+			eventRouter.Route(routed)
+			return
+		}
+
 		eventRouter.Route(routed)
 		if err := producer.Produce(event.Topic, event.Key, event.Data); err != nil {
 			log.Printf("Kafka event produce failed topic=%s: %v", event.Topic, err)
@@ -221,6 +239,16 @@ func isWorldState(data []byte) bool {
 		return false
 	}
 	return event.Type == "WORLD_STATE"
+}
+
+func isGameOver(data []byte) bool {
+	var event struct {
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(data, &event); err != nil {
+		return false
+	}
+	return event.Type == "GAME_OVER"
 }
 
 func worldStateTimestamp(data []byte) int64 {
