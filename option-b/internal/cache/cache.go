@@ -24,6 +24,9 @@ type WorldStateCache struct {
 	UnitConfigs map[string]config.UnitConfig // read-only after startup
 	LightView   LightSideView
 	DarkView    DarkSideView
+	GameOver    bool
+	Winner      string
+	Cause       string
 }
 
 // UnitSnapshot is the current state of a unit.
@@ -144,6 +147,9 @@ func (c *WorldStateCache) ResetFromConfig(cfg *config.GameConfig) {
 	c.UnitConfigs = fresh.UnitConfigs
 	c.LightView = fresh.LightView
 	c.DarkView = fresh.DarkView
+	c.GameOver = false
+	c.Winner = ""
+	c.Cause = ""
 }
 
 // ═══════════════════════════════════════════════════════
@@ -171,19 +177,25 @@ func (c *WorldStateCache) GetSnapshot() WorldStateSnapshot {
 	}
 
 	return WorldStateSnapshot{
-		Turn:    c.Turn,
-		Units:   units,
-		Regions: regions,
-		Paths:   paths,
+		Turn:     c.Turn,
+		Units:    units,
+		Regions:  regions,
+		Paths:    paths,
+		GameOver: c.GameOver,
+		Winner:   c.Winner,
+		Cause:    c.Cause,
 	}
 }
 
 // WorldStateSnapshot is a serializable snapshot of the game state.
 type WorldStateSnapshot struct {
-	Turn    int              `json:"turn"`
-	Units   []UnitSnapshot   `json:"units"`
-	Regions []RegionSnapshot `json:"regions"`
-	Paths   []PathSnapshot   `json:"paths"`
+	Turn     int              `json:"turn"`
+	Units    []UnitSnapshot   `json:"units"`
+	Regions  []RegionSnapshot `json:"regions"`
+	Paths    []PathSnapshot   `json:"paths"`
+	GameOver bool             `json:"gameOver,omitempty"`
+	Winner   string           `json:"winner,omitempty"`
+	Cause    string           `json:"cause,omitempty"`
 }
 
 // UpdateFromJSON updates the cache from a WorldStateSnapshot JSON.
@@ -197,6 +209,9 @@ func (c *WorldStateCache) UpdateFromJSON(data []byte) error {
 	}
 
 	c.Turn = snap.Turn
+	c.GameOver = snap.GameOver
+	c.Winner = snap.Winner
+	c.Cause = snap.Cause
 
 	for _, u := range snap.Units {
 		c.Units[u.ID] = u

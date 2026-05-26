@@ -26,6 +26,8 @@ type TurnState struct {
 	Config        *config.GameConfig
 	Graph         *GameGraph
 	GameOver      bool
+	Winner        string
+	Cause         string
 	Exposed       bool
 	CurrentOrders []Order
 }
@@ -162,6 +164,7 @@ func (tp *TurnProcessor) ProcessTurn(state *TurnState, orders []Order) []GameEve
 	// Step 13: Check win conditions
 	events = append(events, tp.step13CheckWinConditions(state)...)
 	if state.GameOver {
+		events = append(events, tp.produceWorldSnapshot(state))
 		return events
 	}
 
@@ -237,9 +240,9 @@ func (tp *TurnProcessor) step3ProcessBlocking(state *TurnState, orders []Order) 
 					path.SurveillanceLevel++
 				}
 				events = append(events, makeEvent("game.events.path", order.PathID, map[string]interface{}{
-					"pathId":             order.PathID,
-					"surveillanceLevel":  path.SurveillanceLevel,
-					"turn":               state.Turn,
+					"pathId":            order.PathID,
+					"surveillanceLevel": path.SurveillanceLevel,
+					"turn":              state.Turn,
 				}))
 			}
 		}
@@ -705,13 +708,11 @@ func (tp *TurnProcessor) step13CheckWinConditions(state *TurnState) []GameEvent 
 		if unit.Config.Class == "RingBearer" && unit.Status == "ACTIVE" {
 			regionCfg := tp.cfg.RegionsByID[unit.CurrentRegion]
 			if destroySubmitted && regionCfg.SpecialRole == "RING_DESTRUCTION_SITE" && !hasActiveShadowUnit(state, unit.CurrentRegion) {
-				state.GameOver = true
-				events = append(events, makeGameOverEvent("FREE_PEOPLES", "Ring destroyed at Mount Doom", state.Turn))
+				events = append(events, markGameOver(state, "FREE_PEOPLES", "Ring destroyed at Mount Doom"))
 				return events
 			}
 			if state.Exposed && hasActiveShadowUnit(state, unit.CurrentRegion) {
-				state.GameOver = true
-				events = append(events, makeGameOverEvent("SHADOW", "Ring Bearer exposed and intercepted", state.Turn))
+				events = append(events, markGameOver(state, "SHADOW", "Ring Bearer exposed and intercepted"))
 				return events
 			}
 		}
@@ -720,16 +721,14 @@ func (tp *TurnProcessor) step13CheckWinConditions(state *TurnState) []GameEvent 
 	// Win 2: Ring Bearer destroyed
 	for _, unit := range state.Units {
 		if unit.Config.Class == "RingBearer" && unit.Status == "DESTROYED" {
-			state.GameOver = true
-			events = append(events, makeGameOverEvent("SHADOW", "Ring Bearer destroyed", state.Turn))
+			events = append(events, markGameOver(state, "SHADOW", "Ring Bearer destroyed"))
 			return events
 		}
 	}
 
 	// Draw: max turns reached with no winner.
 	if state.Turn >= tp.cfg.MaxTurns {
-		state.GameOver = true
-		events = append(events, makeGameOverEvent("DRAW", "Maximum turns reached with no winner", state.Turn))
+		events = append(events, markGameOver(state, "DRAW", "Maximum turns reached with no winner"))
 		return events
 	}
 
@@ -762,6 +761,9 @@ func MakeWorldSnapshotEvent(state *TurnState) GameEvent {
 		"units":     units,
 		"regions":   regions,
 		"paths":     paths,
+		"gameOver":  state.GameOver,
+		"winner":    state.Winner,
+		"cause":     state.Cause,
 		"exposed":   state.Exposed,
 		"timestamp": time.Now().UnixMilli(),
 	}
@@ -776,6 +778,9 @@ func InitTurnStateFromJSON(cfg *config.GameConfig, graph *GameGraph, data []byte
 		Units     []UnitRuntime   `json:"units"`
 		Regions   []RegionRuntime `json:"regions"`
 		Paths     []PathRuntime   `json:"paths"`
+		GameOver  bool            `json:"gameOver"`
+		Winner    string          `json:"winner"`
+		Cause     string          `json:"cause"`
 		Exposed   bool            `json:"exposed"`
 		Timestamp int64           `json:"timestamp"`
 	}
@@ -789,6 +794,9 @@ func InitTurnStateFromJSON(cfg *config.GameConfig, graph *GameGraph, data []byte
 	if snap.Turn > 0 {
 		state.Turn = snap.Turn
 	}
+	state.GameOver = snap.GameOver
+	state.Winner = snap.Winner
+	state.Cause = snap.Cause
 	state.Exposed = snap.Exposed
 	for i := range snap.Units {
 		unit := snap.Units[i]
@@ -836,6 +844,13 @@ func makeGameOverEvent(winner, cause string, turn int) GameEvent {
 		"cause":   cause,
 		"turn":    turn,
 	})
+}
+
+func markGameOver(state *TurnState, winner, cause string) GameEvent {
+	state.GameOver = true
+	state.Winner = winner
+	state.Cause = cause
+	return makeGameOverEvent(winner, cause, state.Turn)
 }
 
 func gameOverEventID(winner string, turn int) string {
