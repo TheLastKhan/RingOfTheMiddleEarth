@@ -13,8 +13,9 @@
     <description>Topology 1: Order Validation (8 rules) + Topology 2: Route Risk Enrichment</description>
 
     <properties>
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>
+        <maven.compiler.source>23</maven.compiler.source>
+        <maven.compiler.target>23</maven.compiler.target>
+        <maven.compiler.release>23</maven.compiler.release>
         <kafka.version>3.6.0</kafka.version>
         <avro.version>1.11.3</avro.version>
         <jackson.version>2.16.0</jackson.version>

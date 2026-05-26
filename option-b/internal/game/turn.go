@@ -201,27 +201,47 @@ func (tp *TurnProcessor) step2ProcessRoutes(state *TurnState, orders []Order) []
 func (tp *TurnProcessor) step3ProcessBlocking(state *TurnState, orders []Order) []GameEvent {
 	var events []GameEvent
 	for _, order := range orders {
-		if order.OrderType != "BLOCK_PATH" {
-			continue
-		}
-		unit, ok := state.Units[order.UnitID]
-		if !ok || unit.Status != "ACTIVE" {
-			continue
-		}
-		path, ok := state.Paths[order.PathID]
-		if !ok {
-			continue
+		// ── BlockPath: unit at endpoint → path becomes BLOCKED ──
+		if order.OrderType == "BLOCK_PATH" {
+			unit, ok := state.Units[order.UnitID]
+			if !ok || unit.Status != "ACTIVE" {
+				continue
+			}
+			path, ok := state.Paths[order.PathID]
+			if !ok {
+				continue
+			}
+			if tp.graph.IsEndpointOf(unit.CurrentRegion, order.PathID) {
+				path.Status = "BLOCKED"
+				path.BlockedBy = unit.ID
+				events = append(events, makeEvent("game.events.path", order.PathID, map[string]interface{}{
+					"pathId":    order.PathID,
+					"newStatus": "BLOCKED",
+					"turn":      state.Turn,
+				}))
+			}
 		}
 
-		// FellowshipGuard at endpoint → block path for Nazgul
-		if tp.graph.IsEndpointOf(unit.CurrentRegion, order.PathID) {
-			path.Status = "BLOCKED"
-			path.BlockedBy = unit.ID
-			events = append(events, makeEvent("game.events.path", order.PathID, map[string]interface{}{
-				"pathId":    order.PathID,
-				"newStatus": "BLOCKED",
-				"turn":      state.Turn,
-			}))
+		// ── SearchPath (Dark Side): surveillanceLevel += 1 (max 3) ──
+		if order.OrderType == "SEARCH_PATH" {
+			unit, ok := state.Units[order.UnitID]
+			if !ok || unit.Status != "ACTIVE" || unit.Config.Side != "SHADOW" {
+				continue
+			}
+			path, ok := state.Paths[order.PathID]
+			if !ok {
+				continue
+			}
+			if tp.graph.IsEndpointOf(unit.CurrentRegion, order.PathID) {
+				if path.SurveillanceLevel < 3 {
+					path.SurveillanceLevel++
+				}
+				events = append(events, makeEvent("game.events.path", order.PathID, map[string]interface{}{
+					"pathId":             order.PathID,
+					"surveillanceLevel":  path.SurveillanceLevel,
+					"turn":               state.Turn,
+				}))
+			}
 		}
 	}
 	return events
@@ -230,16 +250,60 @@ func (tp *TurnProcessor) step3ProcessBlocking(state *TurnState, orders []Order) 
 func (tp *TurnProcessor) step4ProcessReinforcements(state *TurnState, orders []Order) []GameEvent {
 	var events []GameEvent
 	for _, order := range orders {
-		if order.OrderType != "REDIRECT_UNIT" {
-			continue
-		}
-		unit, ok := state.Units[order.UnitID]
-		if !ok || unit.Status != "ACTIVE" {
-			continue
+		// ── RedirectUnit: change an existing route ──
+		if order.OrderType == "REDIRECT_UNIT" {
+			unit, ok := state.Units[order.UnitID]
+			if !ok || unit.Status != "ACTIVE" {
+				continue
+			}
+			if len(order.PathIDs) > 0 {
+				unit.Route = order.PathIDs
+				unit.RouteIdx = 0
+			}
+			if order.TargetRegion != "" {
+				for _, edge := range tp.graph.Neighbors(unit.CurrentRegion) {
+					if edge.To == order.TargetRegion {
+						oldRegion := unit.CurrentRegion
+						unit.CurrentRegion = order.TargetRegion
+						events = append(events, makeEvent("game.events.unit", order.UnitID, map[string]interface{}{
+							"unitId": order.UnitID,
+							"from":   oldRegion,
+							"to":     order.TargetRegion,
+							"turn":   state.Turn,
+						}))
+						break
+					}
+				}
+			}
 		}
 
-		// Move unit to target region if adjacent
-		if order.TargetRegion != "" {
+		// ── ReinforceRegion: move unit to adjacent target region ──
+		if order.OrderType == "REINFORCE_REGION" {
+			unit, ok := state.Units[order.UnitID]
+			if !ok || unit.Status != "ACTIVE" || order.TargetRegion == "" {
+				continue
+			}
+			for _, edge := range tp.graph.Neighbors(unit.CurrentRegion) {
+				if edge.To == order.TargetRegion {
+					oldRegion := unit.CurrentRegion
+					unit.CurrentRegion = order.TargetRegion
+					events = append(events, makeEvent("game.events.unit", order.UnitID, map[string]interface{}{
+						"unitId": order.UnitID,
+						"from":   oldRegion,
+						"to":     order.TargetRegion,
+						"turn":   state.Turn,
+					}))
+					break
+				}
+			}
+		}
+
+		// ── DeployNazgul (Dark Side only): move Nazgul to target region ──
+		if order.OrderType == "DEPLOY_NAZGUL" {
+			unit, ok := state.Units[order.UnitID]
+			if !ok || unit.Status != "ACTIVE" || unit.Config.Side != "SHADOW" || order.TargetRegion == "" {
+				continue
+			}
 			for _, edge := range tp.graph.Neighbors(unit.CurrentRegion) {
 				if edge.To == order.TargetRegion {
 					oldRegion := unit.CurrentRegion
@@ -273,7 +337,7 @@ func (tp *TurnProcessor) step5ProcessFortification(state *TurnState, orders []Or
 			continue
 		}
 		region.Fortified = true
-		region.FortifyTimer = 3 // Fortification lasts 3 turns
+		region.FortifyTimer = 2 // Spec: fortifyTurns=2 (Section 6, line 844)
 		events = append(events, makeEvent("game.events.region", region.ID, map[string]interface{}{
 			"regionId":  region.ID,
 			"fortified": true,
@@ -317,7 +381,7 @@ func (tp *TurnProcessor) step6ProcessMaiaAbilities(state *TurnState, orders []Or
 			if allowed {
 				if path, ok := state.Paths[targetPath]; ok {
 					path.Status = "BLOCKED"
-					path.SurveillanceLevel = 5
+					path.SurveillanceLevel = 3 // Spec: permanently sets surveillanceLevel=3 (Section 3.5)
 					path.BlockedBy = unit.ID
 					path.Corrupted = true
 					events = append(events, makeEvent("game.events.path", targetPath, map[string]interface{}{
@@ -491,6 +555,22 @@ func (tp *TurnProcessor) step8ResolveCombat(state *TurnState) []GameEvent {
 				"attackerWon":   true,
 				"turn":          state.Turn,
 			}))
+
+			// Spec Section 6, line 860: If Isengard falls to Light Side → disable Saruman permanently
+			regionCfgCheck := tp.cfg.RegionsByID[regionID]
+			if regionCfgCheck.SpecialRole == "SHADOW_STRONGHOLD" && attackerSide == "FREE_PEOPLES" && regionID == "isengard" {
+				for _, u := range state.Units {
+					if u.Config.Maia && u.Config.Side == "SHADOW" && len(u.Config.MaiaAbilityPaths) > 0 {
+						u.Status = "DESTROYED" // Saruman disabled permanently
+						log.Printf("⚔️ Isengard fell! Saruman (config-driven: Maia+SHADOW+maiaAbilityPaths) disabled")
+						events = append(events, makeEvent("game.events.unit", u.ID, map[string]interface{}{
+							"unitId": u.ID,
+							"event":  "ISENGARD_DESTROYED",
+							"turn":   state.Turn,
+						}))
+					}
+				}
+			}
 		}
 
 		events = append(events, makeEvent("game.events.region", regionID, map[string]interface{}{
