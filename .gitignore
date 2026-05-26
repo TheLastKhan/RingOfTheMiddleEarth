@@ -9,3 +9,4 @@ target/
 Thumbs.db
 _pdfprobe.cs
 .tmp/
+bin/

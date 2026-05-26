@@ -50,9 +50,12 @@ func main() {
 	}
 	gameOverProducer, err := kafkalite.NewTransactionalProducer(os.Getenv("KAFKA_BROKERS"), "rotr-gameover-"+instanceID)
 	if err != nil {
-		log.Fatalf("Transactional Kafka producer error: %v", err)
+		log.Printf("⚠️  Transactional Kafka producer unavailable (standalone mode): %v", err)
+		// Continue without transactional producer — local/demo mode
 	}
-	defer gameOverProducer.Close()
+	if gameOverProducer != nil {
+		defer gameOverProducer.Close()
+	}
 	sessionConsumer := kafkalite.NewConsumer(os.Getenv("KAFKA_BROKERS"))
 
 	kafkaConsumerCh := make(chan router.Event, 100)
@@ -90,9 +93,10 @@ func main() {
 	publishEvent := func(event game.GameEvent) {
 		routed := router.Event{Topic: event.Topic, Key: event.Key, Data: event.Data}
 		if isGameOver(event.Data) {
-			if err := gameOverProducer.ProduceTransaction(context.Background(), event.Topic, event.Key, event.Data); err != nil {
-				log.Printf("Kafka transactional GameOver produce failed: %v", err)
-				return
+			if gameOverProducer != nil {
+				if err := gameOverProducer.ProduceTransaction(context.Background(), event.Topic, event.Key, event.Data); err != nil {
+					log.Printf("Kafka transactional GameOver produce failed (standalone OK): %v", err)
+				}
 			}
 			eventRouter.Route(routed)
 			return
