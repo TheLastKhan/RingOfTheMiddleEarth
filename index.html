@@ -265,6 +265,15 @@
     opacity: 0.45;
     cursor: not-allowed;
   }
+  .turn-end-game-btn {
+    border-color: rgba(192,57,43,0.75);
+    color: #ff7675;
+    background: rgba(192,57,43,0.1);
+  }
+  .turn-end-game-btn:hover:not(:disabled) {
+    border-color: #ff7675;
+    background: rgba(192,57,43,0.2);
+  }
   .player-badge {
     padding: 0.3rem 0.8rem;
     border: 1px solid;
@@ -330,6 +339,7 @@
     display: flex;
     gap: 0.6rem;
     flex-wrap: wrap;
+    min-height: 1rem;
   }
   .unit-meta span { color: var(--parchment); }
   .strength-bar {
@@ -662,6 +672,7 @@
     <div class="turn-display">Turn <span id="turn-number">—</span></div>
     <div class="turn-timer">Next turn in <span id="next-turn-countdown">waiting</span></div>
     <button class="turn-advance-btn" id="advance-turn-btn" onclick="advanceTurn()">End Turn</button>
+    <button class="turn-advance-btn turn-end-game-btn" id="end-game-btn" onclick="endGame()">End Game</button>
     <div id="player-badge-container"></div>
   </div>
 
@@ -742,6 +753,7 @@ const State = {
   selectedUnit: null,
   selectedOrder:null,
   orderPayload: {},
+  routeTargetRegion: null,
   sse:          null,
   maxTurns:     40,
   turnDuration: 60,
@@ -826,6 +838,24 @@ const PATH_COST = {
   'dead-marshes|mordor':2,
   'ithilien|cirith-ungol':2,
   'cirith-ungol|mount-doom':2,
+};
+
+const SIDE_UNIT_ORDER = {
+  FREE_PEOPLES: [
+    'ring-bearer','aragorn','legolas','gimli',
+    'rohan-cavalry','gondor-army','gandalf',
+  ],
+  SHADOW: [
+    'witch-king','nazgul-2','nazgul-3',
+    'uruk-hai-legion','saruman','sauron',
+  ],
+};
+
+const ROUTE_NAMES = {
+  'fellowship': 'Fellowship',
+  'northern-bypass': 'Northern Bypass',
+  'dark-route': 'Dark Route',
+  'southern-corridor': 'Southern Corridor',
 };
 
 const LABEL_OFFSET = {
@@ -1077,21 +1107,64 @@ async function advanceTurn() {
 }
 
 // ══════════════════════════════════════════════════════════
+async function endGame() {
+  if (!confirm('End this game and reset to Turn 1?')) return;
+
+  const btn = document.getElementById('end-game-btn');
+  if (btn) btn.disabled = true;
+
+  try {
+    const res = await fetch(`${State.serverURL}/game/start`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        mode: 'HVH',
+        lightPlayerId: State.side === 'FREE_PEOPLES' ? State.playerId : 'light-opponent',
+        darkPlayerId:  State.side === 'SHADOW'       ? State.playerId : 'dark-opponent',
+      }),
+    });
+    if (!res.ok) {
+      notify('Could not reset game', 'error');
+      return;
+    }
+
+    State.selectedUnit = null;
+    State.selectedOrder = null;
+    State.orderPayload = {};
+    State.routeTargetRegion = null;
+    State.lastSeenTurn = null;
+    State.nextTurnAt = null;
+    stopProcessingPoll();
+
+    document.getElementById('selected-unit-name').textContent = 'Select a unit first';
+    document.getElementById('order-buttons').innerHTML = '';
+    document.getElementById('order-detail').textContent = 'Select a unit and choose an order type.';
+    document.getElementById('submit-order-btn').disabled = true;
+    document.getElementById('risk-display').textContent = '';
+    document.getElementById('event-log').innerHTML = '';
+    document.getElementById('next-turn-countdown').textContent = 'waiting';
+
+    logEvent('GameReset', 'Game ended and reset to Turn 1.', '');
+    notify('Game reset to Turn 1');
+    await fetchState();
+  } catch(e) {
+    notify('Server unreachable', 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 // UNIT LIST
 // ══════════════════════════════════════════════════════════
 function renderUnits() {
   const container = document.getElementById('unit-list');
   const mySide = State.side;
+  const unitOrder = SIDE_UNIT_ORDER[mySide] || [];
 
   const myUnits = State.units.filter(u => {
     // Side bilgisi config'den geliyor — basit heuristic
-    if (mySide === 'FREE_PEOPLES')
-      return ['ring-bearer','aragorn','legolas','gimli',
-              'rohan-cavalry','gondor-army','gandalf'].includes(u.id);
-    else
-      return ['witch-king','nazgul-2','nazgul-3',
-              'uruk-hai-legion','saruman','sauron'].includes(u.id);
-  });
+    return unitOrder.includes(u.id);
+  }).sort((a, b) => unitOrder.indexOf(a.id) - unitOrder.indexOf(b.id));
 
   container.innerHTML = myUnits.map(unit => {
     const maxStr = getMaxStrength(unit.id);
@@ -1147,6 +1220,7 @@ function selectUnit(unitId) {
   State.selectedUnit  = unit;
   State.selectedOrder = null;
   State.orderPayload  = {};
+  State.routeTargetRegion = null;
 
   document.getElementById('selected-unit-name').textContent =
     formatUnitName(unitId);
@@ -1198,6 +1272,7 @@ async function renderOrderButtons(unitId) {
 function selectOrder(orderType) {
   State.selectedOrder = orderType;
   State.orderPayload  = {};
+  State.routeTargetRegion = null;
 
   const detail = document.getElementById('order-detail');
 
@@ -1207,9 +1282,9 @@ function selectOrder(orderType) {
       detail.innerHTML = `
         <label style="display:block;margin-bottom:4px;font-size:0.6rem;
                        letter-spacing:0.1em;color:var(--gold-dim)">
-          PATH IDs (comma separated)
+          PATH IDs
         </label>
-        <input type="text" id="path-ids-input" placeholder="shire-to-bree,bree-to-weathertop"
+        <input type="text" id="path-ids-input" placeholder="Click a map region or type path IDs"
                style="width:100%;background:var(--dark);border:1px solid #444;
                       color:var(--parchment);padding:4px 6px;font-size:0.7rem;outline:none"
                oninput="State.orderPayload.pathIds=this.value.split(',').map(s=>s.trim())"/>`;
@@ -1270,6 +1345,7 @@ function selectOrder(orderType) {
   }
 
   document.getElementById('submit-order-btn').disabled = false;
+  renderMap();
 
   // Order button'larını güncelle
   document.querySelectorAll('.order-btn').forEach(btn => {
@@ -1307,7 +1383,9 @@ async function submitOrder() {
       logEvent('OrderSubmitted',
         `${formatUnitName(State.selectedUnit.id)}: ${State.selectedOrder}`, '');
       State.selectedOrder = null;
+      State.routeTargetRegion = null;
       document.getElementById('submit-order-btn').disabled = true;
+      renderMap();
     } else {
       const err = await res.json();
       notify(err.message || 'Order rejected', 'error');
@@ -1410,11 +1488,22 @@ function renderMap() {
     ctx.fill();
 
     // SVG-style node border
+    const routeSelected = State.routeTargetRegion === id &&
+      (State.selectedOrder === 'ASSIGN_ROUTE' || State.selectedOrder === 'REDIRECT_UNIT');
     ctx.beginPath();
     ctx.arc(x, y, radius, 0, Math.PI*2);
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth   = 3;
+    ctx.strokeStyle = routeSelected ? '#111111' : '#ffffff';
+    ctx.lineWidth   = routeSelected ? 5 : 3;
     ctx.stroke();
+    if (routeSelected) {
+      ctx.beginPath();
+      ctx.arc(x, y, radius + 6, 0, Math.PI*2);
+      ctx.strokeStyle = 'rgba(17,17,17,0.78)';
+      ctx.lineWidth   = 2;
+      ctx.setLineDash([5, 4]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
     drawTerrainIconOnNode(ctx, x, y, REGION_TERRAIN[id]);
 
     // Fortification indicator
@@ -1467,14 +1556,89 @@ function renderMap() {
 function findPathId(a, b) {
   const candidates = Object.keys(State.paths);
   for (const id of candidates) {
+    const path = State.paths[id];
+    if ((path.from === a && path.to === b) ||
+        (path.from === b && path.to === a)) return id;
     if ((id.includes(a) && id.includes(b)) ||
         (id.includes(b) && id.includes(a))) return id;
   }
-  return null;
+  const slug = region => region === 'the-shire' ? 'shire' : region;
+  return `${slug(a)}-to-${slug(b)}`;
 }
 
 function pathCost(a, b) {
   return PATH_COST[`${a}|${b}`] || PATH_COST[`${b}|${a}`] || 1;
+}
+
+function shortestRoutePathIds(fromRegion, toRegion) {
+  if (!fromRegion || !toRegion || fromRegion === toRegion) return [];
+
+  const graph = {};
+  PATHS_DATA.forEach(([a, b]) => {
+    const pathId = findPathId(a, b) || `${a}-to-${b}`;
+    const cost = pathCost(a, b);
+    (graph[a] ||= []).push({to: b, pathId, cost});
+    (graph[b] ||= []).push({to: a, pathId, cost});
+  });
+
+  const distances = {};
+  const previous = {};
+  const queue = new Set(Object.keys(REGION_POS));
+  Object.keys(REGION_POS).forEach(id => { distances[id] = Infinity; });
+  distances[fromRegion] = 0;
+
+  while (queue.size > 0) {
+    let current = null;
+    queue.forEach(id => {
+      if (current === null || distances[id] < distances[current]) current = id;
+    });
+    if (current === null || distances[current] === Infinity) break;
+
+    queue.delete(current);
+    if (current === toRegion) break;
+
+    (graph[current] || []).forEach(edge => {
+      if (!queue.has(edge.to)) return;
+      const candidate = distances[current] + edge.cost;
+      if (candidate < distances[edge.to]) {
+        distances[edge.to] = candidate;
+        previous[edge.to] = {region: current, pathId: edge.pathId};
+      }
+    });
+  }
+
+  if (!previous[toRegion]) return [];
+
+  const pathIds = [];
+  let cursor = toRegion;
+  while (cursor !== fromRegion) {
+    const step = previous[cursor];
+    if (!step) return [];
+    pathIds.unshift(step.pathId);
+    cursor = step.region;
+  }
+  return pathIds;
+}
+
+function assignRouteToRegion(targetRegion) {
+  if (!State.selectedUnit || !targetRegion) {
+    notify('Select a unit first', 'error');
+    return;
+  }
+
+  const currentRegion = State.selectedUnit.currentRegion || State.selectedUnit.region;
+  const pathIds = shortestRoutePathIds(currentRegion, targetRegion);
+  if (pathIds.length === 0) {
+    notify('No route found', 'error');
+    return;
+  }
+
+  const input = document.getElementById('path-ids-input');
+  if (input) input.value = pathIds.join(',');
+  State.routeTargetRegion = targetRegion;
+  State.orderPayload.pathIds = pathIds;
+  notify(`Route target: ${formatRegionName(targetRegion)}`);
+  renderMap();
 }
 
 function roundedRect(ctx, x, y, w, h, r) {
@@ -1624,7 +1788,7 @@ function drawUnitBadge(ctx, x, y, unit) {
   roundedRect(ctx, x, y, width, 18, 5);
   ctx.fillStyle = side === 'LIGHT' ? 'rgba(74,144,217,0.92)' : 'rgba(192,57,43,0.92)';
   ctx.fill();
-  ctx.strokeStyle = selected ? '#ffdd59' : '#ffffff';
+  ctx.strokeStyle = selected ? '#111111' : '#ffffff';
   ctx.lineWidth = selected ? 3 : 1.5;
   ctx.stroke();
 
@@ -1803,33 +1967,44 @@ function formatRegionName(id) {
 // ══════════════════════════════════════════════════════════
 // ANALYSIS
 // ══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+// EVENT LOG
+// ══════════════════════════════════════════════════════════
 async function fetchAnalysis() {
   const endpoint = State.side === 'FREE_PEOPLES'
     ? '/analysis/routes'
     : '/analysis/intercept';
+  const riskDisplay = document.getElementById('risk-display');
+  riskDisplay.textContent = 'Analyzing...';
 
   try {
-    const res  = await fetch(`${State.serverURL}${endpoint}?playerId=${encodeURIComponent(State.playerId)}&side=${encodeURIComponent(State.side)}`);
+    const res = await fetch(`${State.serverURL}${endpoint}?playerId=${encodeURIComponent(State.playerId)}&side=${encodeURIComponent(State.side)}`);
+    if (!res.ok) throw new Error(`analysis failed: ${res.status}`);
     const data = await res.json();
 
     if (State.side === 'FREE_PEOPLES' && data.routes) {
       const best = data.routes[0];
-      document.getElementById('risk-display').textContent =
-        best ? `Best route: ${best.route?.id} (risk ${best.riskScore})` : '';
+      riskDisplay.textContent = best
+        ? `Best route: ${ROUTE_NAMES[best.routeId] || best.routeId} (risk ${best.riskScore})`
+        : 'No route analysis available';
       logEvent('RouteAnalysis',
-        `Recommended: ${data.recommended} — ${data.routes?.length} routes scored`, '');
+        `Recommended: ${ROUTE_NAMES[data.recommended] || data.recommended} - ${data.routes?.length} routes scored`, '');
     } else if (data.byUnit) {
+      const best = data.byUnit[0];
+      riskDisplay.textContent = best
+        ? `Best intercept: ${formatUnitName(best.unitId)} -> ${formatRegionName(best.targetRegion)} (${best.score})`
+        : 'No intercept plan available';
       logEvent('InterceptAnalysis',
         `${data.byUnit?.length} Nazgul interception plans computed`, '');
+    } else {
+      riskDisplay.textContent = 'No analysis available';
     }
   } catch(e) {
+    riskDisplay.textContent = '';
     notify('Analysis unavailable', 'error');
   }
 }
 
-// ══════════════════════════════════════════════════════════
-// EVENT LOG
-// ══════════════════════════════════════════════════════════
 function logEvent(type, message, cssClass) {
   const log = document.getElementById('event-log');
   const entry = document.createElement('div');
@@ -1901,10 +2076,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (closest) {
       // Seçili order için region set et
-      const regionSelect = document.getElementById('region-select');
-      if (regionSelect) regionSelect.value = closest;
-      State.orderPayload.targetRegion = closest;
-      notify(`Selected: ${closest}`);
+      if (State.selectedOrder === 'ASSIGN_ROUTE' || State.selectedOrder === 'REDIRECT_UNIT') {
+        assignRouteToRegion(closest);
+      } else {
+        const regionSelect = document.getElementById('region-select');
+        if (regionSelect) regionSelect.value = closest;
+        State.orderPayload.targetRegion = closest;
+        notify(`Selected: ${formatRegionName(closest)}`);
+      }
     }
   });
 });

@@ -136,7 +136,53 @@ func main() {
 		}
 	}
 
+	handleStart := func() {
+		if !gameStarted {
+			gameStarted = true
+			turnTimer.Reset(turnDuration)
+			log.Printf("Turn timer started: first turn ends in %s", turnDuration)
+		}
+	}
+
+	handleReset := func(ack chan struct{}) {
+		stopTurnTimer()
+		turnState = game.InitTurnState(cfg, graph)
+		worldCache.ResetFromConfig(cfg)
+		pendingOrders = pendingOrders[:0]
+		server.ResetTurn()
+		publishEvent(game.MakeWorldSnapshotEvent(turnState))
+		gameStarted = true
+		turnTimer.Reset(turnDuration)
+		log.Printf("New game started: turn reset to 1, first turn ends in %s", turnDuration)
+		close(ack)
+	}
+
+	handleAdvance := func(ack chan struct{}) {
+		if !gameStarted {
+			gameStarted = true
+		}
+		stopTurnTimer()
+		processTurn("manual advance")
+		if !turnState.GameOver {
+			turnTimer.Reset(turnDuration)
+		}
+		close(ack)
+	}
+
 	for {
+		select {
+		case <-server.StartCh:
+			handleStart()
+			continue
+		case ack := <-server.ResetCh:
+			handleReset(ack)
+			continue
+		case ack := <-server.AdvanceCh:
+			handleAdvance(ack)
+			continue
+		default:
+		}
+
 		select {
 		case msg := <-kafkaConsumerCh:
 			eventRouter.Route(msg)
@@ -166,34 +212,13 @@ func main() {
 			log.Printf("Player disconnected: %s", playerID)
 
 		case <-server.StartCh:
-			if !gameStarted {
-				gameStarted = true
-				turnTimer.Reset(turnDuration)
-				log.Printf("Turn timer started: first turn ends in %s", turnDuration)
-			}
+			handleStart()
 
 		case ack := <-server.ResetCh:
-			stopTurnTimer()
-			turnState = game.InitTurnState(cfg, graph)
-			worldCache.ResetFromConfig(cfg)
-			pendingOrders = pendingOrders[:0]
-			server.ResetTurn()
-			publishEvent(game.MakeWorldSnapshotEvent(turnState))
-			gameStarted = true
-			turnTimer.Reset(turnDuration)
-			log.Printf("New game started: turn reset to 1, first turn ends in %s", turnDuration)
-			close(ack)
+			handleReset(ack)
 
 		case ack := <-server.AdvanceCh:
-			if !gameStarted {
-				gameStarted = true
-			}
-			stopTurnTimer()
-			processTurn("manual advance")
-			if !turnState.GameOver {
-				turnTimer.Reset(turnDuration)
-			}
-			close(ack)
+			handleAdvance(ack)
 
 		case reqType := <-analysisRequestCh:
 			log.Printf("Analysis requested: %s", reqType)
