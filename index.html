@@ -955,42 +955,52 @@ function connectSSE() {
   };
 
   // Event handler'ları
+  const eventPayload = e => {
+    const parsed = JSON.parse(e.data);
+    return parsed?.data || parsed;
+  };
+
   State.sse.addEventListener('game.broadcast', e => {
-    const data = JSON.parse(e.data);
+    const data = eventPayload(e);
     handleWorldState(data);
   });
 
   State.sse.addEventListener('game.ring.position', e => {
-    const data = JSON.parse(e.data);
+    const data = eventPayload(e);
+    const region = data.trueRegion || data.region || data.regionId;
     // Sadece Light Side alır
-    logEvent('RingBearerMoved', `Frodo is at ${data.trueRegion}`, 'movement');
-    notify(`🌟 Frodo moved to ${data.trueRegion}`);
+    logEvent('RingBearerMoved', `Frodo is at ${formatRegionName(region)}`, 'movement');
+    notify(`Frodo moved to ${formatRegionName(region)}`);
   });
 
   State.sse.addEventListener('game.ring.detection', e => {
-    const data = JSON.parse(e.data);
-    logEvent('RingBearerDetected', `Ring Bearer detected! ${data.regionId || data.pathId}`, 'detection');
+    const data = eventPayload(e);
+    const location = data.regionId ? formatRegionName(data.regionId) : (data.pathId || 'unknown location');
+    logEvent('RingBearerDetected', `Ring Bearer detected! ${location}`, 'detection');
     notify(`🔥 Ring Bearer detected!`, 'error');
   });
 
   State.sse.addEventListener('game.events.unit', e => {
-    const data = JSON.parse(e.data);
-    logEvent(data.eventType || 'UnitEvent',
-      `${data.unitId}: ${data.eventType}`, '');
+    const data = eventPayload(e);
+    logUnitEvent(data);
     fetchState(); // Durumu güncelle
   });
 
   State.sse.addEventListener('game.events.path', e => {
-    const data = JSON.parse(e.data);
-    logEvent('PathChanged', `${data.pathId} → ${data.status}`, '');
+    const data = eventPayload(e);
+    const status = data.newStatus || data.status || 'updated';
+    logEvent('PathChanged', `${data.pathId || 'Unknown path'} -> ${status}`, '');
     fetchState();
   });
 
   State.sse.addEventListener('game.events.region', e => {
-    const data = JSON.parse(e.data);
+    const data = eventPayload(e);
     if (data.eventType === 'BATTLE_RESOLVED') {
       logEvent('BattleResolved',
-        `${data.regionId}: ${data.attackerWon ? 'Attackers prevail' : 'Defenders hold'}`, '');
+        `${formatRegionName(data.regionId)}: ${data.attackerWon ? 'Attackers prevail' : 'Defenders hold'}`, '');
+    } else {
+      logEvent('RegionEvent',
+        `${formatRegionName(data.regionId)}: ${data.newController || 'updated'}`, '');
     }
     fetchState();
   });
@@ -999,6 +1009,24 @@ function connectSSE() {
 // ══════════════════════════════════════════════════════════
 // STATE FETCH
 // ══════════════════════════════════════════════════════════
+function logUnitEvent(data) {
+  const unitName = formatUnitName(data.unitId);
+  const eventType = data.eventType || data.event || (data.from && data.to ? 'MOVED' : 'UnitEvent');
+
+  if (data.from && data.to) {
+    logEvent('UnitMoved',
+      `${unitName} moved from ${formatRegionName(data.from)} to ${formatRegionName(data.to)}`, 'movement');
+    return;
+  }
+
+  if (data.region) {
+    logEvent(eventType, `${unitName} is at ${formatRegionName(data.region)}`, '');
+    return;
+  }
+
+  logEvent(eventType, unitName, '');
+}
+
 async function fetchState() {
   try {
     const res = await fetch(
@@ -1570,13 +1598,26 @@ function pathCost(a, b) {
   return PATH_COST[`${a}|${b}`] || PATH_COST[`${b}|${a}`] || 1;
 }
 
+function autoRouteStepCost(a, b, targetRegion, fromRegion) {
+  let cost = pathCost(a, b);
+
+  if (State.side === 'FREE_PEOPLES' &&
+      targetRegion === 'mount-doom' &&
+      fromRegion !== 'mordor' &&
+      (a === 'mordor' || b === 'mordor')) {
+    cost += 100;
+  }
+
+  return cost;
+}
+
 function shortestRoutePathIds(fromRegion, toRegion) {
   if (!fromRegion || !toRegion || fromRegion === toRegion) return [];
 
   const graph = {};
   PATHS_DATA.forEach(([a, b]) => {
     const pathId = findPathId(a, b) || `${a}-to-${b}`;
-    const cost = pathCost(a, b);
+    const cost = autoRouteStepCost(a, b, toRegion, fromRegion);
     (graph[a] ||= []).push({to: b, pathId, cost});
     (graph[b] ||= []).push({to: a, pathId, cost});
   });

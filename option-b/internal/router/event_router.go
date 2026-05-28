@@ -46,6 +46,13 @@ func NewEventRouter() *EventRouter {
 	}
 }
 
+func sendEvent(ch chan Event, event Event) {
+	select {
+	case ch <- event:
+	default:
+	}
+}
+
 // Route processes an incoming Kafka event and routes it to the
 // appropriate channels. This is THE SINGLE enforcement point
 // for information asymmetry.
@@ -62,37 +69,37 @@ func (r *EventRouter) Route(event Event) {
 		// ════════════════════════════════════════════
 		// LIGHT SIDE ONLY — never send to Dark Side
 		// ════════════════════════════════════════════
-		r.LightSSECh <- event
+		sendEvent(r.LightSSECh, event)
 		// NEVER: r.DarkSSECh <- event
 
 	case "game.ring.detection":
 		// ════════════════════════════════════════════
 		// DARK SIDE ONLY — never send to Light Side
 		// ════════════════════════════════════════════
-		r.DarkSSECh <- event
+		sendEvent(r.DarkSSECh, event)
 		// NEVER: r.LightSSECh <- event
 
 	case "game.broadcast":
 		// ════════════════════════════════════════════
 		// BOTH — but Dark Side gets stripped version
 		// ════════════════════════════════════════════
-		r.LightSSECh <- event
-		r.DarkSSECh <- stripRingBearer(event)
-		r.CacheUpdateCh <- event
+		sendEvent(r.LightSSECh, event)
+		sendEvent(r.DarkSSECh, stripRingBearer(event))
+		sendEvent(r.CacheUpdateCh, event)
 
 	case "game.events.unit", "game.events.region", "game.events.path":
 		// ════════════════════════════════════════════
 		// BOTH SIDES — no filtering needed
 		// ════════════════════════════════════════════
-		r.LightSSECh <- event
-		r.DarkSSECh <- event
-		r.CacheUpdateCh <- event
+		sendEvent(r.LightSSECh, event)
+		sendEvent(r.DarkSSECh, event)
+		sendEvent(r.CacheUpdateCh, event)
 
 	case "game.orders.validated":
 		// ════════════════════════════════════════════
 		// ENGINE ONLY — for turn processing
 		// ════════════════════════════════════════════
-		r.EngineCh <- event
+		sendEvent(r.EngineCh, event)
 	}
 }
 
