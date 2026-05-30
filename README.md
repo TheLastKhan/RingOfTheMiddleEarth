@@ -12,7 +12,8 @@ Latest verified checks:
 
 - `go test ./...` passes.
 - `scripts/demo-validation-k4.ps1` passes Kafka Streams validation tests: 9 tests, 0 failures.
-- `scripts/check-gameover-idempotency.ps1` verifies committed transactional GameOver output increments exactly once.
+- `scripts/check-gameover-idempotency.ps1` verifies committed transactional GameOver output increments exactly once for Light victory.
+- `scripts/check-gameover-idempotency-dark.ps1` verifies the same exactly-once behavior for Dark victory.
 - `scripts/chaos-soak-smoke.ps1` runs a configurable engine stop/start soak loop and checks replay convergence.
 - `scripts/browser-smoke.ps1` checks the UI contract and, when Playwright CLI is available, captures Light/Dark screenshots.
 - `docker compose up -d --build` starts the full stack.
@@ -119,6 +120,7 @@ Transactional GameOver exactly-once smoke test:
 
 ```powershell
 .\scripts\check-gameover-idempotency.ps1
+.\scripts\check-gameover-idempotency-dark.ps1
 ```
 
 Chaos/soak hardening smoke:
@@ -182,7 +184,7 @@ docker compose down -v
 | Go combat/router/pipeline/turn logic | `go test ./...` |
 | Kafka Streams 8 validation rules | `scripts/demo-validation-k4.ps1` |
 | E2E gameplay/failover smoke | `scripts/full-e2e-smoke.ps1` |
-| Transactional GameOver exactly-once smoke | `scripts/check-gameover-idempotency.ps1` |
+| Transactional GameOver exactly-once smoke | `scripts/check-gameover-idempotency.ps1`, `scripts/check-gameover-idempotency-dark.ps1` |
 | Chaos/soak hardening | `scripts/chaos-soak-smoke.ps1` |
 | Browser/UI smoke | `scripts/browser-smoke.ps1` |
 | Schema evolution | Schema Registry shows `game.orders.validated-value` versions `1,2` |

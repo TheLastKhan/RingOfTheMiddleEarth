@@ -112,9 +112,10 @@ Transactional GameOver exactly-once testi:
 
 ```powershell
 .\scripts\check-gameover-idempotency.ps1
+.\scripts\check-gameover-idempotency-dark.ps1
 ```
 
-Bu test Light victory senaryosunu oynatir, `read_committed` Kafka consumer ile `game.broadcast` icindeki GameOver sayisinin sadece 1 arttigini ve oyun bittikten sonra ekstra turn advance cagrilarinin yeni GameOver uretmedigini dogrular.
+Ilk test Light victory senaryosunu oynatir. Ikinci test Dark victory senaryosunu oynatir. Ikisi de `read_committed` Kafka consumer ile `game.broadcast` icindeki ilgili GameOver sayisinin sadece 1 arttigini ve oyun bittikten sonra ekstra turn advance cagrilarinin yeni GameOver uretmedigini dogrular.
 
 Chaos/soak hardening testi:
 
@@ -268,6 +269,7 @@ go test -C option-b ./...
 .\scripts\demo-validation-k4.ps1
 .\scripts\full-e2e-smoke.ps1
 .\scripts\check-gameover-idempotency.ps1
+.\scripts\check-gameover-idempotency-dark.ps1
 .\scripts\chaos-soak-smoke.ps1
 .\scripts\browser-smoke.ps1
 ```
