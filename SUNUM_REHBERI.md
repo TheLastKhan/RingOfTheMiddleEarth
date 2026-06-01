@@ -119,6 +119,8 @@ Bu projede Option B, yani Go + Kafka mimarisini sectim. Amacim iki oyunculu bir 
 
 Ekranda `docker compose ps` veya `docker-compose.yml` dosyasini ac.
 
+Daha gorsel anlatim icin `TEKNIK_AKIS_DIYAGRAMLARI.md` dosyasini ac. Bu dosyada sistem mimarisi, player order akisi, End Turn pipeline'i, Kafka topicleri, SSE information hiding, fault tolerance ve exactly-once GameOver akisi Mermaid diyagramlariyla gosteriliyor.
+
 Ana mimari:
 
 ```text
