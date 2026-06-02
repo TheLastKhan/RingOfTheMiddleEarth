@@ -196,6 +196,7 @@ docker compose down -v
 
 - `CALISTIRMA_REHBERI.md`: how to run and test the project.
 - `SUNUM_REHBERI.md`: demo script and Q&A answers.
+- `SUNUM_REHBERI_EN.md`: detailed English in-person presentation guide.
 - `TEKNIK_AKIS_DIYAGRAMLARI.md`: Mermaid diagrams for architecture, orders, SSE, Kafka, and failover flows.
 - `TEKNOLOJI_EGITIM.md`: technology explanations.
 - `architecture-document.md`: architecture, tradeoffs, and rubric evidence.
