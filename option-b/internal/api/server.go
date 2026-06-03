@@ -68,6 +68,8 @@ func (s *Server) signalGameStarted() {
 }
 
 func (s *Server) signalGameReset() {
+	// Wait for the engine loop to rebuild state before this HTTP request returns.
+	// That keeps the UI from immediately reading stale turn data after reset.
 	ack := make(chan struct{})
 	select {
 	case s.ResetCh <- ack:
@@ -81,6 +83,8 @@ func (s *Server) signalGameReset() {
 }
 
 func (s *Server) signalAdvanceTurn() {
+	// Manual turn advance can run the full turn processor and publish events,
+	// so it gets a longer timeout than reset.
 	ack := make(chan struct{})
 	select {
 	case s.AdvanceCh <- ack:
@@ -188,7 +192,8 @@ func (s *Server) handleAdvanceTurn(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleGameState(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	// Determine player side
+	// Backend-side information hiding: Dark receives sanitized state even if
+	// the browser directly calls /game/state.
 	isDarkSide := s.isRequestDarkSide(r)
 
 	if isDarkSide {
@@ -199,6 +204,8 @@ func (s *Server) handleGameState(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) writeState(w http.ResponseWriter, data []byte) {
+	// The cache already returns side-appropriate JSON. This helper adds runtime
+	// metadata used by the UI, such as timer length and max turns.
 	var payload map[string]interface{}
 	if err := json.Unmarshal(data, &payload); err != nil {
 		w.Write(data)
@@ -224,7 +231,8 @@ func (s *Server) handleOrder(w http.ResponseWriter, r *http.Request) {
 	normalizeOrderPayload(&order)
 	s.signalGameStarted()
 
-	// Validate
+	// Validate before the order enters the engine loop. Invalid orders fail fast
+	// with a useful HTTP error instead of silently changing turn processing.
 	result := s.validator.Validate(order)
 	if !result.Valid {
 		w.Header().Set("Content-Type", "application/json")
@@ -236,7 +244,8 @@ func (s *Server) handleOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Send to order channel (for Kafka production)
+	// Send to the engine-owned order channel. If the buffer is full, avoid
+	// blocking the HTTP goroutine forever and log the dropped order.
 	select {
 	case s.OrderCh <- order:
 	default:
@@ -254,6 +263,8 @@ func (s *Server) handleOrder(w http.ResponseWriter, r *http.Request) {
 
 // GET /orders/available — Available orders for a unit
 func normalizeOrderPayload(order *validation.Order) {
+	// Older UI payloads nested fields under "payload"; newer payloads put the
+	// same fields at top level. Normalization keeps both request shapes working.
 	if order.Payload == nil {
 		return
 	}
@@ -343,7 +354,8 @@ func (s *Server) handleAvailableOrders(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 	playerID := r.URL.Query().Get("playerId")
 
-	// Set SSE headers
+	// SSE keeps the HTTP response open and streams one-way server events to the
+	// browser. Player commands still use normal POST requests.
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -370,7 +382,8 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("📡 SSE connected: %s", playerID)
 
-	// Determine which router channel to listen to
+	// This is the live-event side of information hiding: Light and Dark read
+	// from different router channels.
 	isDarkSide := s.isRequestDarkSide(r)
 
 	ctx := r.Context()
@@ -409,7 +422,8 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 
 // GET /analysis/routes — Route risk analysis (Light Side only)
 func (s *Server) handleAnalysisRoutes(w http.ResponseWriter, r *http.Request) {
-	// Build route inputs from canonical routes
+	// Canonical routes are stored as region IDs in config, so this handler first
+	// resolves the path IDs connecting each consecutive region pair.
 	var routes []pipeline.RouteRiskInput
 	for _, cr := range s.cfg.CanonicalRoutes {
 		pathIDs := []string{}
@@ -430,7 +444,8 @@ func (s *Server) handleAnalysisRoutes(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	// Build state snapshot
+	// Build pipeline input from the serving cache. The pipeline package receives
+	// plain snapshots so it remains testable without the HTTP server.
 	snap := s.cache.GetSnapshot()
 	state := pipeline.RouteRiskState{
 		Regions: make(map[string]pipeline.RegionSnapshot),
@@ -467,7 +482,8 @@ func (s *Server) handleAnalysisRoutes(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleAnalysisIntercept(w http.ResponseWriter, r *http.Request) {
 	snap := s.cache.GetSnapshot()
 
-	// Find active Nazgul
+	// Find active Nazgul-like detectors by config, then score each one against
+	// every canonical route candidate.
 	var inputs []pipeline.InterceptInput
 	for _, u := range snap.Units {
 		cfg, ok := s.cfg.UnitsByID[u.ID]
@@ -519,6 +535,8 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 // ═══════════════════════════════════════════════════════
 
 func (s *Server) requestPlayerSide(r *http.Request) string {
+	// Prefer explicit side query parameters; they are less ambiguous than
+	// player IDs and make the browser URLs easy to demo.
 	side := r.URL.Query().Get("side")
 	if side == "FREE_PEOPLES" || side == "SHADOW" {
 		return side

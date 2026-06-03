@@ -75,6 +75,8 @@ type UnitSnapshot struct {
 
 // ComputeRouteRisk runs Pipeline 1 with fan-out to 4 workers.
 func ComputeRouteRisk(ctx context.Context, routes []RouteRiskInput, state RouteRiskState) RankedRouteList {
+	// Pipeline 1 is a read-only decision-support calculation for Light. It uses
+	// fan-out/fan-in so each canonical route can be scored independently.
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
@@ -161,6 +163,8 @@ func ComputeRouteRisk(ctx context.Context, routes []RouteRiskInput, state RouteR
 //	+ count(THREATENED paths) * 2
 //	+ nazgulProximityCount * 2
 func computeSingleRouteRisk(route RouteRiskInput, state RouteRiskState) RouteRiskResult {
+	// Lower score means safer. Threat, surveillance, blocked paths, threatened
+	// paths, and nearby Nazgul all increase the score.
 	result := RouteRiskResult{
 		RouteID:         route.RouteID,
 		ThreatenedPaths: []string{},
@@ -238,6 +242,8 @@ type InterceptPlan struct {
 
 // ComputeInterception runs Pipeline 2 with fan-out to 4 workers.
 func ComputeInterception(ctx context.Context, inputs []InterceptInput, graph *game.GameGraph) InterceptPlan {
+	// Pipeline 2 is the Shadow-side mirror of route risk: score where each
+	// Nazgul could intercept a route before or when the Ring Bearer arrives.
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
@@ -309,6 +315,8 @@ func ComputeInterception(ctx context.Context, inputs []InterceptInput, graph *ga
 //	score = interceptWindow >= 0 ?
 //	        1.0 - (turnsToIntercept / routeLength) : 0.0
 func computeSingleIntercept(input InterceptInput, graph *game.GameGraph) InterceptResult {
+	// For each candidate route region, compare how many turns the Ring Bearer
+	// needs to reach it with how many graph hops the Nazgul needs to intercept.
 	bestScore := 0.0
 	bestRegion := ""
 	routeLength := len(input.RouteRegions)

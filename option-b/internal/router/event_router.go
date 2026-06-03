@@ -28,10 +28,10 @@ type Event struct {
 // EventRouter routes events to the correct SSE channels,
 // enforcing information asymmetry.
 type EventRouter struct {
-	LightSSECh   chan Event
-	DarkSSECh    chan Event
+	LightSSECh    chan Event
+	DarkSSECh     chan Event
 	CacheUpdateCh chan Event
-	EngineCh     chan Event
+	EngineCh      chan Event
 
 	mu sync.RWMutex
 }
@@ -47,6 +47,9 @@ func NewEventRouter() *EventRouter {
 }
 
 func sendEvent(ch chan Event, event Event) {
+	// Non-blocking send keeps the engine loop from freezing if an SSE/cache
+	// consumer is slow or disconnected. Dropping a transient UI event is safer
+	// than blocking turn processing during a demo.
 	select {
 	case ch <- event:
 	default:
@@ -57,11 +60,11 @@ func sendEvent(ch chan Event, event Event) {
 // appropriate channels. This is THE SINGLE enforcement point
 // for information asymmetry.
 //
-//   game.ring.position  → Light Side SSE ONLY (never Dark Side)
-//   game.ring.detection → Dark Side SSE ONLY (never Light Side)
-//   game.broadcast      → Light: full, Dark: Ring Bearer region stripped
-//   game.events.*       → Both sides
-//   game.orders.*       → Engine channel
+//	game.ring.position  → Light Side SSE ONLY (never Dark Side)
+//	game.ring.detection → Dark Side SSE ONLY (never Light Side)
+//	game.broadcast      → Light: full, Dark: Ring Bearer region stripped
+//	game.events.*       → Both sides
+//	game.orders.*       → Engine channel
 func (r *EventRouter) Route(event Event) {
 	switch event.Topic {
 
@@ -109,14 +112,14 @@ func (r *EventRouter) Route(event Event) {
 
 // worldStateJSON is used for stripping Ring Bearer position.
 type worldStateJSON struct {
-	Turn      int              `json:"turn"`
-	Units     []unitJSON       `json:"units"`
-	Regions   json.RawMessage  `json:"regions,omitempty"`
-	Paths     json.RawMessage  `json:"paths,omitempty"`
-	Timestamp int64            `json:"timestamp,omitempty"`
-	Winner    string           `json:"winner,omitempty"`
-	Cause     string           `json:"cause,omitempty"`
-	Type      string           `json:"type,omitempty"`
+	Turn      int             `json:"turn"`
+	Units     []unitJSON      `json:"units"`
+	Regions   json.RawMessage `json:"regions,omitempty"`
+	Paths     json.RawMessage `json:"paths,omitempty"`
+	Timestamp int64           `json:"timestamp,omitempty"`
+	Winner    string          `json:"winner,omitempty"`
+	Cause     string          `json:"cause,omitempty"`
+	Type      string          `json:"type,omitempty"`
 }
 
 type unitJSON struct {
@@ -131,6 +134,8 @@ type unitJSON struct {
 // stripRingBearer creates a copy of the broadcast event with
 // ring-bearer.currentRegion set to "" — ALWAYS.
 func stripRingBearer(event Event) Event {
+	// This function edits a copy of the broadcast payload. Light still receives
+	// the original event, while Dark receives only the sanitized copy.
 	var state worldStateJSON
 	if err := json.Unmarshal(event.Data, &state); err != nil {
 		// If we can't parse, return as-is (shouldn't happen)
@@ -168,6 +173,8 @@ func stripRingBearer(event Event) Event {
 // StripRingBearerFromState strips the Ring Bearer position from a world state
 // JSON for Dark Side consumption. Exported for use by API handlers.
 func StripRingBearerFromState(data []byte) []byte {
+	// HTTP /game/state uses the same policy as SSE broadcasts: Dark gets a
+	// state payload with the Ring Bearer's currentRegion removed.
 	var state worldStateJSON
 	if err := json.Unmarshal(data, &state); err != nil {
 		return data

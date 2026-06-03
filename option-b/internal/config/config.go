@@ -115,6 +115,8 @@ type mapFile struct {
 
 // LoadConfig loads the game configuration from unit and map JSON files.
 func LoadConfig(unitsPath, mapPath string) (*GameConfig, error) {
+	// External JSON loading path. The current Docker demo usually uses
+	// DefaultConfig, but this keeps the engine ready for file-based config.
 	cfg := &GameConfig{}
 
 	// Load units
@@ -184,6 +186,9 @@ func loadMapJSON(path string, cfg *GameConfig) error {
 // DefaultConfig returns a hardcoded GameConfig for unit testing
 // without requiring external config files.
 func DefaultConfig() *GameConfig {
+	// Embedded config is useful for Docker demos and unit tests because it
+	// removes dependency on external JSON files while preserving config-driven
+	// gameplay decisions.
 	cfg := &GameConfig{
 		HiddenUntilTurn:     3,
 		MaxTurns:            40,

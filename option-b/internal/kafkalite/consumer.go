@@ -22,11 +22,15 @@ type Consumer struct {
 }
 
 func NewConsumer(brokers string) *Consumer {
+	// Reuse the producer's broker parsing so both Kafka helpers interpret
+	// KAFKA_BROKERS the same way.
 	return &Consumer{brokers: NewProducer(brokers).brokers}
 }
 
 // FetchAll reads available messages from a single topic partition.
 func (c *Consumer) FetchAll(topic string, partition int32, offset int64) ([]Message, error) {
+	// Read from each configured broker until one responds. The caller passes the
+	// next offset, which lets session replay poll incrementally.
 	if c == nil || len(c.brokers) == 0 {
 		return nil, errors.New("kafka broker is not configured")
 	}
@@ -47,6 +51,8 @@ func (c *Consumer) FetchAll(topic string, partition int32, offset int64) ([]Mess
 }
 
 func (c *Consumer) fetchFromBroker(broker, topic string, partition int32, offset int64) ([]Message, error) {
+	// Minimal Kafka Fetch v0 request. This is intentionally scoped to what the
+	// engine needs: reading JSON snapshots from one topic partition.
 	conn, err := net.DialTimeout("tcp", broker, 5*time.Second)
 	if err != nil {
 		return nil, err
@@ -93,6 +99,8 @@ func (c *Consumer) fetchFromBroker(broker, topic string, partition int32, offset
 }
 
 func parseFetchResponse(resp []byte) ([]Message, error) {
+	// Parse enough of the Fetch v0 response to extract offset, key, and value
+	// from each message. Unknown or malformed trailing bytes stop parsing.
 	pos := 4 // correlation id
 	if pos+4 > len(resp) {
 		return nil, errors.New("short fetch response")

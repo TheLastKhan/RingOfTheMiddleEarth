@@ -20,6 +20,8 @@ type Producer struct {
 
 // NewProducer creates a producer using the first broker in a comma list.
 func NewProducer(brokers string) *Producer {
+	// KAFKA_BROKERS is passed as a comma-separated list in Docker. If it is
+	// missing, default to the internal compose broker address.
 	brokerList := []string{"kafka-1:29092"}
 	if brokers != "" {
 		brokerList = nil
@@ -38,6 +40,8 @@ func NewProducer(brokers string) *Producer {
 
 // Produce sends one message to partition 0 with acks=1.
 func (p *Producer) Produce(topic, key string, value []byte) error {
+	// Try each configured broker until one succeeds. This lightweight producer
+	// avoids a large dependency for ordinary non-transactional demo events.
 	if p == nil || len(p.brokers) == 0 {
 		return errors.New("kafka broker is not configured")
 	}
@@ -57,6 +61,8 @@ func (p *Producer) Produce(topic, key string, value []byte) error {
 }
 
 func (p *Producer) produceToBroker(broker, topic, key string, value []byte) error {
+	// Minimal Kafka Produce v0 implementation. It writes one JSON message to a
+	// deterministic partition and checks the first produce error in the response.
 	conn, err := net.DialTimeout("tcp", broker, 5*time.Second)
 	if err != nil {
 		return err
@@ -109,6 +115,8 @@ func (p *Producer) produceToBroker(broker, topic, key string, value []byte) erro
 }
 
 func partitionFor(topic string) int32 {
+	// Keep related topics on predictable partitions. This is enough for the demo
+	// scripts that consume partition 0 or compare session snapshots.
 	switch topic {
 	case "game.orders.raw":
 		return 2
@@ -151,6 +159,8 @@ func firstProduceError(resp []byte) int16 {
 }
 
 func buildMessageSet(key string, value []byte) []byte {
+	// Kafka Produce v0 expects a message set with CRC, magic byte, attributes,
+	// key, and value. The helper functions below write big-endian primitives.
 	var msg bytes.Buffer
 	msg.WriteByte(0) // magic
 	msg.WriteByte(0) // attributes

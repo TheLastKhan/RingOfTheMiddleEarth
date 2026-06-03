@@ -20,10 +20,10 @@ type CombatUnit struct {
 
 // CombatResult contains the outcome of a battle.
 type CombatResult struct {
-	AttackerWon     bool
-	AttackerPower   int
-	DefenderPower   int
-	Damage          int
+	AttackerWon      bool
+	AttackerPower    int
+	DefenderPower    int
+	Damage           int
 	UpdatedAttackers []CombatUnit
 	UpdatedDefenders []CombatUnit
 }
@@ -33,9 +33,10 @@ type CombatResult struct {
 // ═══════════════════════════════════════════════════════
 
 // TerrainBonus returns the defensive terrain bonus for a region type.
-//   FORTRESS  → +2
-//   MOUNTAINS → +1
-//   others    → 0
+//
+//	FORTRESS  → +2
+//	MOUNTAINS → +1
+//	others    → 0
 func TerrainBonus(terrain string) int {
 	switch terrain {
 	case "FORTRESS":
@@ -79,18 +80,21 @@ func effectiveStrength(unit CombatUnit, allUnits []CombatUnit) int {
 // ResolveCombat resolves a battle between attackers and defenders in a region.
 //
 // Formula:
-//   attacker_power = sum of attackers' effective strengths
-//   defender_power = sum of defenders' effective strengths
-//                  + terrain_bonus  (skipped if any attacker has ignoresFortress)
-//                  + fortification_bonus
 //
-//   if attacker_power > defender_power:
-//     damage = attacker_power - defender_power
-//     region control → attacker's side
-//   else:
-//     each attacker loses 1 strength
-//     region control unchanged
+//	attacker_power = sum of attackers' effective strengths
+//	defender_power = sum of defenders' effective strengths
+//	               + terrain_bonus  (skipped if any attacker has ignoresFortress)
+//	               + fortification_bonus
+//
+//	if attacker_power > defender_power:
+//	  damage = attacker_power - defender_power
+//	  region control → attacker's side
+//	else:
+//	  each attacker loses 1 strength
+//	  region control unchanged
 func ResolveCombat(attackers, defenders []CombatUnit, terrain string, fortified bool) CombatResult {
+	// Pure calculation: do not mutate runtime units here. turn.go applies the
+	// returned strength/status changes back onto TurnState.
 	// ── Attacker power ──
 	allCombatants := append(append([]CombatUnit{}, attackers...), defenders...)
 	attackerPower := 0
@@ -145,6 +149,8 @@ func ResolveCombat(attackers, defenders []CombatUnit, terrain string, fortified 
 
 // applyDamageToDefenders distributes damage across defenders.
 func applyDamageToDefenders(defenders []CombatUnit, totalDamage int) []CombatUnit {
+	// Damage is distributed in slice order. The caller later translates zero
+	// strength into DESTROYED or RESPAWNING based on config.
 	updated := make([]CombatUnit, len(defenders))
 	copy(updated, defenders)
 
@@ -166,6 +172,8 @@ func applyDamageToDefenders(defenders []CombatUnit, totalDamage int) []CombatUni
 
 // applyRepelDamage applies 1 damage to each attacker (repelled).
 func applyRepelDamage(attackers []CombatUnit) []CombatUnit {
+	// If attackers fail to exceed defender power, every attacker loses one
+	// strength. This models a failed assault rather than defender damage.
 	updated := make([]CombatUnit, len(attackers))
 	for i, u := range attackers {
 		updated[i] = applyDamage(u, 1)

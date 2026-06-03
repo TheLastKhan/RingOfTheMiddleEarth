@@ -135,6 +135,8 @@ func NewWorldStateCache(cfg *config.GameConfig) *WorldStateCache {
 }
 
 func (c *WorldStateCache) ResetFromConfig(cfg *config.GameConfig) {
+	// Reset swaps the cache back to a clean config-derived state. This is used
+	// by /game/start and End Game so the browser can restart from Turn 1.
 	fresh := NewWorldStateCache(cfg)
 
 	c.mu.Lock()
@@ -158,6 +160,8 @@ func (c *WorldStateCache) ResetFromConfig(cfg *config.GameConfig) {
 
 // GetSnapshot returns a value copy of the entire game state.
 func (c *WorldStateCache) GetSnapshot() WorldStateSnapshot {
+	// Return value copies instead of internal maps. Callers can build analysis
+	// inputs or HTTP responses without racing against cache updates.
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -200,6 +204,8 @@ type WorldStateSnapshot struct {
 
 // UpdateFromJSON updates the cache from a WorldStateSnapshot JSON.
 func (c *WorldStateCache) UpdateFromJSON(data []byte) error {
+	// Turn processing publishes WORLD_STATE snapshots as JSON. Applying those
+	// snapshots here keeps the read-side HTTP cache in sync with the engine.
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -239,6 +245,8 @@ func (c *WorldStateCache) UpdateFromJSON(data []byte) error {
 
 // GetLightState returns a JSON state for the Light Side player.
 func (c *WorldStateCache) GetLightState() []byte {
+	// Light state is the full snapshot because Light is allowed to know the Ring
+	// Bearer's true position.
 	snap := c.GetSnapshot()
 	data, _ := json.Marshal(snap)
 	return data
@@ -247,6 +255,8 @@ func (c *WorldStateCache) GetLightState() []byte {
 // GetDarkState returns a JSON state for the Dark Side player
 // with Ring Bearer position stripped.
 func (c *WorldStateCache) GetDarkState() []byte {
+	// Dark state starts from the same snapshot, then strips the Ring Bearer
+	// position before serialization. This prevents API-level information leaks.
 	snap := c.GetSnapshot()
 
 	// Strip Ring Bearer position

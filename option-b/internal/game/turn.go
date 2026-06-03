@@ -17,17 +17,19 @@ import (
 
 // TurnState holds mutable game state for one turn of processing.
 type TurnState struct {
-	Turn          int
-	Units         map[string]*UnitRuntime
-	Regions       map[string]*RegionRuntime
-	Paths         map[string]*PathRuntime
-	LightView     *LightView
-	DarkView      *DarkViewData
-	Config        *config.GameConfig
-	Graph         *GameGraph
-	GameOver      bool
-	Winner        string
-	Cause         string
+	Turn      int
+	Units     map[string]*UnitRuntime
+	Regions   map[string]*RegionRuntime
+	Paths     map[string]*PathRuntime
+	LightView *LightView
+	DarkView  *DarkViewData
+	Config    *config.GameConfig
+	Graph     *GameGraph
+	GameOver  bool
+	Winner    string
+	Cause     string
+	// Exposed is turn-scoped. ProcessTurn resets it at the start of every turn,
+	// detection may set it during this turn, and win conditions read it at the end.
 	Exposed       bool
 	CurrentOrders []Order
 }
@@ -121,6 +123,8 @@ func (tp *TurnProcessor) ProcessTurn(state *TurnState, orders []Order) []GameEve
 
 	log.Printf("⚙️  Processing turn %d with %d orders", state.Turn, len(orders))
 
+	// Exposure is not permanent. A Shadow player must capitalize on detection
+	// during the same processed turn unless the Ring Bearer is destroyed outright.
 	state.Exposed = false
 
 	// Step 1: Collect and validate orders
@@ -195,6 +199,8 @@ func (tp *TurnProcessor) step2ProcessRoutes(state *TurnState, orders []Order) []
 		if !ok || unit.Status != "ACTIVE" {
 			continue
 		}
+		// Route assignment stores the path sequence; movement happens later in
+		// step 7 so all players' orders are applied in deterministic order.
 		unit.Route = order.PathIDs
 		unit.RouteIdx = 0
 	}
@@ -456,7 +462,9 @@ func (tp *TurnProcessor) step7AutoAdvanceUnits(state *TurnState) []GameEvent {
 			"turn":   state.Turn,
 		}))
 
-		// If this is the Ring Bearer, update ring position
+		// Ring Bearer movement produces a Light-only position event. If the path
+		// is under surveillance after the hidden period, the same movement also
+		// exposes the Ring Bearer for this turn.
 		if unit.Config.Class == "RingBearer" {
 			state.LightView.RingBearerRegion = destination
 			events = append(events, makeEvent("game.ring.position", "", map[string]interface{}{
@@ -517,6 +525,8 @@ func (tp *TurnProcessor) step8ResolveCombat(state *TurnState) []GameEvent {
 			defenders = lightUnits
 		}
 
+		// ResolveCombat is pure calculation; this step applies the returned
+		// strength/status changes back onto mutable runtime units.
 		result := ResolveCombat(attackers, defenders, regionCfg.Terrain, region.Fortified)
 
 		// Apply results to unit runtime
@@ -676,6 +686,8 @@ func (tp *TurnProcessor) step12Detection(state *TurnState) []GameEvent {
 		}
 	}
 
+	// Detection input is derived from config and current unit state so the
+	// detection logic does not need hardcoded unit IDs.
 	input := BuildDetectionInput(rbRegion, state.Turn, tp.cfg, unitStates)
 	result := CheckDetection(tp.graph, input)
 
@@ -711,6 +723,9 @@ func (tp *TurnProcessor) step13CheckWinConditions(state *TurnState) []GameEvent 
 				events = append(events, markGameOver(state, "FREE_PEOPLES", "Ring destroyed at Mount Doom"))
 				return events
 			}
+			// Interception win: the Ring Bearer was exposed this turn and is in a
+			// region occupied by an active Shadow unit. Combat destruction is
+			// handled by the separate Ring Bearer DESTROYED check below.
 			if state.Exposed && hasActiveShadowUnit(state, unit.CurrentRegion) {
 				events = append(events, markGameOver(state, "SHADOW", "Ring Bearer exposed and intercepted"))
 				return events

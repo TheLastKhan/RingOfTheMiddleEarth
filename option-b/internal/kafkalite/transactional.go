@@ -16,6 +16,8 @@ type TransactionalProducer struct {
 }
 
 func NewTransactionalProducer(brokers, transactionalID string) (*TransactionalProducer, error) {
+	// Transactional ID must be stable per engine instance. Kafka uses it to
+	// fence old producers and provide transactional commit/abort semantics.
 	if transactionalID == "" {
 		return nil, errors.New("transactional id is required")
 	}
@@ -43,6 +45,8 @@ func (p *TransactionalProducer) Close() {
 // ProduceTransaction commits one record atomically. If any step fails, the
 // buffered transaction is aborted before returning.
 func (p *TransactionalProducer) ProduceTransaction(ctx context.Context, topic, key string, value []byte) error {
+	// The mutex serializes transactions on this producer. A single franz-go
+	// transactional producer cannot safely run overlapping transactions.
 	if p == nil || p.client == nil {
 		return errors.New("transactional producer is not configured")
 	}
@@ -54,6 +58,8 @@ func (p *TransactionalProducer) ProduceTransaction(ctx context.Context, topic, k
 		return err
 	}
 
+	// Manual partitioning keeps GameOver records in the predictable partition
+	// used by the read_committed smoke tests.
 	record := &kgo.Record{
 		Topic:     topic,
 		Key:       []byte(key),

@@ -39,13 +39,15 @@ type DetectionResult struct {
 // CheckDetection checks if any Nazgul detects the Ring Bearer this turn.
 //
 // Rules:
-//   1. If turn <= hiddenUntilTurn → suppressed (no detection)
-//   2. Each Nazgul's effective range = config.DetectionRange
-//      + 1 if Sauron is ACTIVE and at his base region (Eye of Sauron bonus)
-//   3. If graph.Distance(nazgul.region, ringBearer.region) <= effectiveRange → detected
+//  1. If turn <= hiddenUntilTurn → suppressed (no detection)
+//  2. Each Nazgul's effective range = config.DetectionRange
+//     + 1 if Sauron is ACTIVE and at his base region (Eye of Sauron bonus)
+//  3. If graph.Distance(nazgul.region, ringBearer.region) <= effectiveRange → detected
 //
 // ALL detection logic uses config values. No unit ID string matching.
 func CheckDetection(graph *GameGraph, input DetectionInput) DetectionResult {
+	// Pure calculation: given graph + input state, return a detection result.
+	// step12Detection applies this result to TurnState and emits events.
 	// Rule 1: suppression period
 	if input.RingBearerTurn <= input.HiddenUntilTurn {
 		return DetectionResult{Detected: false}
@@ -90,6 +92,8 @@ func BuildDetectionInput(
 	cfg *config.GameConfig,
 	unitStates map[string]UnitState,
 ) DetectionInput {
+	// Convert full config + runtime unit state into the smaller shape that
+	// detection needs. Roles are inferred from config fields, not unit IDs.
 	input := DetectionInput{
 		RingBearerRegion: ringBearerRegion,
 		RingBearerTurn:   turn,

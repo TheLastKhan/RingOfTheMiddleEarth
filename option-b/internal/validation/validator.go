@@ -81,6 +81,9 @@ func (v *Validator) ResetTurn() {
 // Validate applies all 8 rules to an order.
 // Returns the first failing rule's error, or Valid=true if all pass.
 func (v *Validator) Validate(order Order) ValidationResult {
+	// Validation is intentionally ordered. Cheap global checks run first, then
+	// state-dependent checks, and the duplicate marker runs last so rejected
+	// orders do not consume a unit's one order for the turn.
 	// Rule 1: Turn number matches current turn
 	if result := v.rule1TurnNumber(order); !result.Valid {
 		return result
@@ -129,6 +132,8 @@ func (v *Validator) Validate(order Order) ValidationResult {
 // ═══════════════════════════════════════════════════════
 
 func (v *Validator) rule1TurnNumber(order Order) ValidationResult {
+	// The UI includes the turn number it thinks it is submitting for. This
+	// catches stale browser state, old tabs, and double-clicks after End Turn.
 	snap := v.cache.GetSnapshot()
 	if order.Turn != snap.Turn {
 		return ValidationResult{
@@ -140,6 +145,8 @@ func (v *Validator) rule1TurnNumber(order Order) ValidationResult {
 }
 
 func (v *Validator) rule2UnitOwnership(order Order) ValidationResult {
+	// Side ownership is enforced on the backend, not only in the UI. This is why
+	// a Light browser cannot submit orders for Shadow units by editing requests.
 	unitCfg, ok := v.cfg.UnitsByID[order.UnitID]
 	if !ok {
 		return ValidationResult{
@@ -168,6 +175,8 @@ func (v *Validator) rule2UnitOwnership(order Order) ValidationResult {
 }
 
 func (v *Validator) rule3PathBlocked(order Order) ValidationResult {
+	// The Ring Bearer cannot start or redirect into a blocked first path. Later
+	// paths are checked dynamically by turn processing as the unit advances.
 	if order.OrderType != "ASSIGN_ROUTE" && order.OrderType != "REDIRECT_UNIT" {
 		return ValidationResult{Valid: true}
 	}
@@ -199,6 +208,8 @@ func (v *Validator) rule3PathBlocked(order Order) ValidationResult {
 }
 
 func (v *Validator) rule4PathInRoute(order Order) ValidationResult {
+	// A route must be physically connected from the unit's current region. This
+	// prevents clients from sending arbitrary path IDs that jump across the map.
 	if order.OrderType != "ASSIGN_ROUTE" && order.OrderType != "REDIRECT_UNIT" {
 		return ValidationResult{Valid: true}
 	}
@@ -244,6 +255,8 @@ func (v *Validator) rule4PathInRoute(order Order) ValidationResult {
 }
 
 func (v *Validator) rule5UnitAtEndpoint(order Order) ValidationResult {
+	// Path actions require physical presence at one endpoint; a unit cannot
+	// search or block a road from the other side of the map.
 	if order.OrderType != "BLOCK_PATH" && order.OrderType != "SEARCH_PATH" {
 		return ValidationResult{Valid: true}
 	}
@@ -288,6 +301,8 @@ func (v *Validator) rule5UnitAtEndpoint(order Order) ValidationResult {
 }
 
 func (v *Validator) rule6AttackTarget(order Order) ValidationResult {
+	// Attack validation only allows the current region or an adjacent region.
+	// DESTROY_RING shares this slot because it is also a target/condition order.
 	if order.OrderType == "DESTROY_RING" {
 		return v.validateDestroyRing(order)
 	}
@@ -328,6 +343,8 @@ func (v *Validator) rule6AttackTarget(order Order) ValidationResult {
 }
 
 func (v *Validator) rule7MaiaCooldown(order Order) ValidationResult {
+	// Maia abilities are config-driven, but cooldown lives in runtime state.
+	// The validator checks the latest cache snapshot before accepting the order.
 	if order.OrderType != "MAIA_ABILITY" {
 		return ValidationResult{Valid: true}
 	}
@@ -359,6 +376,8 @@ func (v *Validator) rule7MaiaCooldown(order Order) ValidationResult {
 }
 
 func (v *Validator) markUnitOrder(order Order) ValidationResult {
+	// This map is reset after each processed turn. The mutex protects duplicate
+	// tracking because multiple HTTP requests can arrive concurrently.
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
@@ -373,6 +392,8 @@ func (v *Validator) markUnitOrder(order Order) ValidationResult {
 }
 
 func (v *Validator) validateDestroyRing(order Order) ValidationResult {
+	// Light victory is deliberately strict: only the Ring Bearer, at Mount Doom,
+	// with no active Shadow unit in the same region, can submit DESTROY_RING.
 	unitCfg, ok := v.cfg.UnitsByID[order.UnitID]
 	if !ok || unitCfg.Class != "RingBearer" {
 		return ValidationResult{ErrorCode: ErrDestroyCondition, ErrorMsg: "only the Ring Bearer can destroy the ring"}

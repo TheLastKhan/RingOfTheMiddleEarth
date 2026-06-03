@@ -26,10 +26,16 @@ func main() {
 	log.Println("    Game Engine - Option B (Go)")
 	log.Println("=======================================")
 
+	// Bootstrap the engine from the embedded demo configuration.
+	// This gives every Go instance the same unit, region, path, and route data.
 	cfg := config.DefaultConfig()
 	log.Printf("Config loaded: %d units, %d regions, %d paths, %d routes",
 		len(cfg.Units), len(cfg.Regions), len(cfg.Paths), len(cfg.CanonicalRoutes))
 
+	// Runtime collaborators:
+	// - graph answers map-distance and path-endpoint questions,
+	// - worldCache serves side-specific HTTP state,
+	// - eventRouter fans events out to Light SSE, Dark SSE, and cache updates.
 	graph := game.NewGameGraph(cfg)
 	worldCache := cache.NewWorldStateCache(cfg)
 	eventRouter := router.NewEventRouter()
@@ -39,10 +45,15 @@ func main() {
 		port = "8080"
 	}
 
+	// The HTTP server accepts browser commands, but the main goroutine owns
+	// mutable turn state. Browser orders cross that boundary through channels.
 	server := api.NewServer(cfg, worldCache, eventRouter, graph, port)
 	turnProcessor := game.NewTurnProcessor(cfg, graph)
 	turnState := game.InitTurnState(cfg, graph)
 	pendingOrders := make([]game.Order, 0)
+	// Normal events use a lightweight producer. Terminal GameOver events use a
+	// transactional producer so read_committed smoke tests can verify duplicates
+	// are not committed.
 	producer := kafkalite.NewProducer(os.Getenv("KAFKA_BROKERS"))
 	instanceID := os.Getenv("INSTANCE_ID")
 	if instanceID == "" {
@@ -58,6 +69,8 @@ func main() {
 	}
 	sessionConsumer := kafkalite.NewConsumer(os.Getenv("KAFKA_BROKERS"))
 
+	// Channels are the engine's internal wiring. They keep HTTP handlers,
+	// Kafka polling, cache updates, turn advancement, and shutdown decoupled.
 	kafkaConsumerCh := make(chan router.Event, 100)
 	sessionReplayCh := make(chan []byte, 10)
 	newConnectionCh := make(chan string, 10)
@@ -90,6 +103,9 @@ func main() {
 
 	var lastSessionTimestamp int64
 
+	// publishEvent is the central exit point for events produced by turn
+	// processing. WORLD_STATE broadcasts are also mirrored to game.session for
+	// restart/replay convergence.
 	publishEvent := func(event game.GameEvent) {
 		routed := router.Event{Topic: event.Topic, Key: event.Key, Data: event.Data}
 		if isGameOver(event.Data) {
@@ -116,6 +132,8 @@ func main() {
 		}
 	}
 
+	// processTurn drains accepted orders into the deterministic 13-step turn
+	// processor, publishes resulting events, and resets per-turn validation.
 	processTurn := func(reason string) {
 		currentTurn := worldCache.GetSnapshot().Turn
 		log.Printf("Turn %d ended by %s with %d pending orders", currentTurn, reason, len(pendingOrders))
@@ -144,6 +162,8 @@ func main() {
 		}
 	}
 
+	// handleReset rebuilds both mutable TurnState and read-side cache from
+	// config, publishes an initial snapshot, and restarts the timer at Turn 1.
 	handleReset := func(ack chan struct{}) {
 		stopTurnTimer()
 		turnState = game.InitTurnState(cfg, graph)
@@ -157,6 +177,8 @@ func main() {
 		close(ack)
 	}
 
+	// handleAdvance powers the End Turn button and smoke tests. It resolves the
+	// current turn immediately and restarts the timer only if the game continues.
 	handleAdvance := func(ack chan struct{}) {
 		if !gameStarted {
 			gameStarted = true
@@ -169,6 +191,8 @@ func main() {
 		close(ack)
 	}
 
+	// Main engine loop. The small non-blocking select at the top gives manual
+	// start/reset/advance signals priority over background Kafka/cache traffic.
 	for {
 		select {
 		case <-server.StartCh:
@@ -188,6 +212,8 @@ func main() {
 			eventRouter.Route(msg)
 
 		case data := <-sessionReplayCh:
+			// Rebuild mutable state from the newest game.session snapshot.
+			// Older snapshots are ignored by timestamp so they cannot rewind state.
 			restored, ts, err := game.InitTurnStateFromJSON(cfg, graph, data)
 			if err != nil {
 				log.Printf("Session replay error: %v", err)
@@ -229,6 +255,8 @@ func main() {
 			}
 
 		case order := <-server.OrderCh:
+			// Accepted HTTP orders enter the current turn here and are also
+			// mirrored to Kafka so the demo can inspect order topics.
 			pendingOrders = append(pendingOrders, toGameOrder(order))
 			data, _ := json.Marshal(order)
 			if err := producer.Produce("game.orders.raw", order.PlayerID, data); err != nil {
@@ -291,6 +319,8 @@ func worldStateTimestamp(data []byte) int64 {
 }
 
 func pollSessionSnapshots(ctx context.Context, consumer *kafkalite.Consumer, out chan<- []byte) {
+	// Polling keeps the demo implementation simple: every engine periodically
+	// reads game.session and forwards the newest unseen snapshot to the main loop.
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 

@@ -26,6 +26,8 @@ type Edge struct {
 
 // NewGameGraph builds the graph from configuration.
 func NewGameGraph(cfg *config.GameConfig) *GameGraph {
+	// Build a bidirectional adjacency list from configured paths. Movement,
+	// detection, and analysis all share this same graph representation.
 	g := &GameGraph{
 		adjacency: make(map[string][]Edge),
 		cfg:       cfg,
@@ -48,6 +50,8 @@ func (g *GameGraph) Neighbors(regionID string) []Edge {
 // Distance computes the shortest hop distance between two regions using BFS.
 // Returns -1 if no path exists (should never happen on a connected graph).
 func (g *GameGraph) Distance(from, to string) int {
+	// BFS uses hop count, not path cost. Detection range and Nazgul proximity
+	// need "how many regions away" rather than route travel cost.
 	if from == to {
 		return 0
 	}
@@ -82,6 +86,8 @@ func (g *GameGraph) Distance(from, to string) int {
 // ShortestPath returns the shortest path (in hops) between two regions.
 // Returns nil if no path exists.
 func (g *GameGraph) ShortestPath(from, to string) []string {
+	// Returns region IDs for UI/analysis convenience. Adjacent region pairs can
+	// later be translated back into configured path IDs.
 	if from == to {
 		return []string{from}
 	}
@@ -139,6 +145,8 @@ func (g *GameGraph) IsEndpointOf(regionID, pathID string) bool {
 
 // RegionsWithinHops returns all regions within N hops of a source region.
 func (g *GameGraph) RegionsWithinHops(source string, maxHops int) []string {
+	// Used by analysis calculations where a unit threatens a radius around its
+	// current region rather than one exact path.
 	if maxHops <= 0 {
 		return []string{source}
 	}
