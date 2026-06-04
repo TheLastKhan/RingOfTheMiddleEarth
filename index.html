@@ -295,7 +295,7 @@
   .panel-left {
     background: var(--dark2);
     border-right: 1px solid rgba(201,168,76,0.2);
-    padding: 0.8rem;
+    padding: 0.65rem;
     overflow-y: auto;
     max-height: calc(100vh - 160px);
   }
@@ -307,15 +307,15 @@
     color: var(--gold);
     font-weight: 700;
     border-bottom: 1px solid rgba(201,168,76,0.2);
-    padding-bottom: 0.5rem;
-    margin-bottom: 0.8rem;
+    padding-bottom: 0.4rem;
+    margin-bottom: 0.55rem;
   }
 
   .unit-card {
     background: var(--dark3);
     border: 1px solid rgba(201,168,76,0.15);
-    padding: 0.6rem 0.7rem;
-    margin-bottom: 0.5rem;
+    padding: 0.42rem 0.55rem;
+    margin-bottom: 0.35rem;
     cursor: pointer;
     transition: all 0.15s;
     position: relative;
@@ -327,17 +327,18 @@
 
   .unit-name {
     font-family: 'Cinzel', serif;
-    font-size: 0.9rem;
+    font-size: 0.82rem;
     font-weight: 700;
     color: var(--gold);
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.18rem;
+    padding-right: 3.3rem;
   }
   .unit-meta {
-    font-size: 0.8rem;
+    font-size: 0.72rem;
     color: var(--muted);
     font-weight: 600;
     display: flex;
-    gap: 0.6rem;
+    gap: 0.45rem;
     flex-wrap: wrap;
     min-height: 1rem;
   }
@@ -345,7 +346,7 @@
   .strength-bar {
     height: 3px;
     background: rgba(255,255,255,0.1);
-    margin-top: 0.4rem;
+    margin-top: 0.28rem;
     border-radius: 2px;
     overflow: hidden;
   }
@@ -355,18 +356,18 @@
     transition: width 0.5s;
   }
   .unit-region {
-    font-size: 0.95rem;
+    font-size: 0.82rem;
     color: var(--parchment);
     font-weight: 700;
-    margin-top: 0.35rem;
+    margin-top: 0.22rem;
     font-style: italic;
   }
   .status-badge {
     position: absolute;
-    top: 0.4rem; right: 0.5rem;
-    font-size: 0.68rem;
-    letter-spacing: 0.1em;
-    padding: 0.1rem 0.3rem;
+    top: 0.32rem; right: 0.42rem;
+    font-size: 0.58rem;
+    letter-spacing: 0.08em;
+    padding: 0.06rem 0.22rem;
     border: 1px solid;
   }
   .status-badge.active   { border-color: #4caf50; color: #4caf50; }
@@ -385,7 +386,7 @@
   #map-canvas {
     width: 100%;
     height: auto;
-    min-height: 520px;
+    min-height: 0;
     display: block;
   }
 
@@ -502,19 +503,20 @@
     display: flex;
     align-items: center;
     gap: 1rem;
-    padding: 0.5rem 1rem;
+    min-height: 0;
+    padding: 0.28rem 0.9rem;
     background: var(--dark2);
     border-top: 1px solid var(--gold-dim);
-    font-size: 0.86rem;
+    font-size: 0.78rem;
     font-weight: 600;
   }
   .analysis-btn {
-    padding: 0.4rem 0.8rem;
+    padding: 0.25rem 0.62rem;
     background: transparent;
     border: 1px solid var(--gold-dim);
     color: var(--gold);
     font-family: 'Cinzel', serif;
-    font-size: 0.78rem;
+    font-size: 0.7rem;
     font-weight: 700;
     letter-spacing: 0.1em;
     cursor: pointer;
@@ -527,7 +529,7 @@
   .risk-display {
     font-family: 'Cinzel', serif;
     color: var(--gold);
-    font-size: 0.82rem;
+    font-size: 0.74rem;
     font-weight: 700;
   }
 
@@ -1479,6 +1481,11 @@ async function submitOrder() {
 // CANVAS MAP
 // ══════════════════════════════════════════════════════════
 let canvas, ctx;
+const MAP_Y_OFFSET_RATIO = -0.015;
+const MAP_Y_SCALE = 1.14;
+const MAP_Y_CENTER_RATIO = 0.43;
+const LEGEND_BOX_H = 126;
+const MIN_MAP_LEGEND_GAP = 16;
 
 function initCanvas() {
   canvas = document.getElementById('map-canvas');
@@ -1490,7 +1497,8 @@ function initCanvas() {
 function resizeCanvas() {
   const parent = canvas.parentElement;
   const width = Math.max(720, parent.clientWidth);
-  const height = Math.round(width * 0.72);
+  const fittedHeight = fitCanvasHeightToMapLegend(width, Math.round(width * 0.68));
+  const height = Math.max(fittedHeight, parent.clientHeight);
   canvas.width  = width;
   canvas.height = height;
   canvas.style.width = `${width}px`;
@@ -1512,8 +1520,8 @@ function renderMap() {
     const posA = REGION_POS[a], posB = REGION_POS[b];
     if (!posA || !posB) return;
 
-    const ax = posA[0]/100*W, ay = posA[1]/100*H;
-    const bx = posB[0]/100*W, by = posB[1]/100*H;
+    const [ax, ay] = mapPoint(a, W, H);
+    const [bx, by] = mapPoint(b, W, H);
 
     // Find path status
     const pathId = findPathId(a, b);
@@ -1579,7 +1587,7 @@ function renderMap() {
 
   // Regions
   Object.entries(REGION_POS).forEach(([id, [px, py]]) => {
-    const x = px/100*W, y = py/100*H;
+    const [x, y] = mapPoint(id, W, H);
     const regionState = State.regions[id];
     const ctrl = regionState?.controller || 'NEUTRAL';
 
@@ -1637,7 +1645,7 @@ function renderMap() {
     if (rb && rb.currentRegion && rb.currentRegion !== '') {
       const pos = REGION_POS[rb.currentRegion];
       if (pos) {
-        const x = pos[0]/100*W, y = pos[1]/100*H;
+        const [x, y] = mapPoint(rb.currentRegion, W, H);
         // Glowing ring badge
         const bx = x - 17, by = y - 17;
         const gradient = ctx.createRadialGradient(bx, by, 0, bx, by, 18);
@@ -1654,6 +1662,36 @@ function renderMap() {
   }
 
   drawMapLegend(ctx, W, H);
+}
+
+function mapPoint(regionId, W, H) {
+  const pos = REGION_POS[regionId];
+  if (!pos) return [0, 0];
+  const rawY = pos[1] / 100;
+  const scaledY = MAP_Y_CENTER_RATIO + (rawY - MAP_Y_CENTER_RATIO) * MAP_Y_SCALE;
+  return [pos[0] / 100 * W, scaledY * H + H * MAP_Y_OFFSET_RATIO];
+}
+
+function mapVisualBounds(W, H) {
+  let top = Infinity;
+  let bottom = -Infinity;
+  Object.keys(REGION_POS).forEach(id => {
+    const [, y] = mapPoint(id, W, H);
+    const [, labelDy] = LABEL_OFFSET[id] || [0, 34];
+    top = Math.min(top, y - 18, y + labelDy - 13);
+    bottom = Math.max(bottom, y + 18, y + labelDy + 13);
+  });
+  return { top, bottom };
+}
+
+function fitCanvasHeightToMapLegend(W, initialH) {
+  let H = initialH;
+  for (let i = 0; i < 6; i++) {
+    const bounds = mapVisualBounds(W, H);
+    const mapTopGap = Math.max(MIN_MAP_LEGEND_GAP, Math.round(bounds.top));
+    H = Math.ceil(bounds.bottom + mapTopGap + LEGEND_BOX_H);
+  }
+  return H;
 }
 
 function findPathId(a, b) {
@@ -1709,10 +1747,8 @@ function findClickedPath(mx, my) {
   PATHS_DATA.forEach(([a, b]) => {
     const posA = REGION_POS[a], posB = REGION_POS[b];
     if (!posA || !posB) return;
-    const ax = posA[0] / 100 * canvas.width;
-    const ay = posA[1] / 100 * canvas.height;
-    const bx = posB[0] / 100 * canvas.width;
-    const by = posB[1] / 100 * canvas.height;
+    const [ax, ay] = mapPoint(a, canvas.width, canvas.height);
+    const [bx, by] = mapPoint(b, canvas.width, canvas.height);
     const dist = distanceToSegment(mx, my, ax, ay, bx, by);
     if (dist < minDist && dist < 16) {
       minDist = dist;
@@ -2074,27 +2110,27 @@ function drawRingBadge(ctx, x, y) {
 
 function drawMapLegend(ctx, W, H) {
   const boxW = Math.min(220, W * 0.22);
-  const boxH = 142;
+  const boxH = LEGEND_BOX_H;
   const gap = 24;
   const totalW = boxW * 3 + gap * 2;
   const startX = Math.max(18, (W - totalW) / 2);
-  const y = Math.min(H * 0.92, H - boxH - 4);
+  const y = Math.round(H - boxH);
 
   drawLegendBox(ctx, startX, y, boxW, boxH, 'Start Control');
-  drawLegendDot(ctx, startX + 26, y + 52, NODE_FILL.FREE_PEOPLES, 'Free Peoples');
-  drawLegendDot(ctx, startX + 26, y + 78, NODE_FILL.SHADOW, 'Shadow');
-  drawLegendDot(ctx, startX + 26, y + 104, NODE_FILL.NEUTRAL, 'Neutral');
+  drawLegendDot(ctx, startX + 26, y + 50, NODE_FILL.FREE_PEOPLES, 'Free Peoples');
+  drawLegendDot(ctx, startX + 26, y + 75, NODE_FILL.SHADOW, 'Shadow');
+  drawLegendDot(ctx, startX + 26, y + 100, NODE_FILL.NEUTRAL, 'Neutral');
 
   const pathX = startX + boxW + gap;
   drawLegendBox(ctx, pathX, y, boxW, boxH, 'Path Costs');
-  drawLegendLine(ctx, pathX + 24, y + 54, false, 'Cost 1');
-  drawLegendLine(ctx, pathX + 24, y + 82, true, 'Cost 2');
-  drawLegendLine(ctx, pathX + 24, y + 110, false, 'Temp Open', '#4b7bec', 4);
-  drawLegendBlocked(ctx, pathX + 44, y + 132, 'Blocked');
+  drawLegendLine(ctx, pathX + 24, y + 50, false, 'Cost 1');
+  drawLegendLine(ctx, pathX + 24, y + 72, true, 'Cost 2');
+  drawLegendLine(ctx, pathX + 24, y + 94, false, 'Temp Open', '#4b7bec', 4);
+  drawLegendBlocked(ctx, pathX + 44, y + 113, 'Blocked');
 
   const terrainX = pathX + boxW + gap;
   drawLegendBox(ctx, terrainX, y, boxW, boxH, 'Terrain Icons');
-  const terrainItems = [['Plains', 52], ['Swamp', 52], ['Mountains', 78], ['Forest', 78], ['Fortress', 104], ['Volcanic', 104]];
+  const terrainItems = [['Plains', 50], ['Swamp', 50], ['Mountains', 75], ['Forest', 75], ['Fortress', 100], ['Volcanic', 100]];
   terrainItems.forEach(([label, rowY], idx) => {
     const colX = terrainX + (idx % 2 === 0 ? 24 : boxW / 2 + 12);
     drawTerrainIcon(ctx, colX, y + rowY, label);
@@ -2298,9 +2334,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // En yakın region'ı bul
     let closest = null, minDist = Infinity;
-    Object.entries(REGION_POS).forEach(([id, [px, py]]) => {
-      const x = px/100*canvas.width;
-      const y = py/100*canvas.height;
+    Object.entries(REGION_POS).forEach(([id]) => {
+      const [x, y] = mapPoint(id, canvas.width, canvas.height);
       const d = Math.hypot(mx-x, my-y);
       if (d < minDist && d < 25) { minDist = d; closest = id; }
     });
