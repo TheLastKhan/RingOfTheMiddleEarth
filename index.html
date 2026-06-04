@@ -771,7 +771,7 @@ const State = {
 // ══════════════════════════════════════════════════════════
 const REGION_POS = {
   // id: [x%, y%] — canvas percentage
-  // Coordinates derived from MiddleEarthMap.svg viewBox (1400x1000)
+  // Coordinates derived from docs/MiddleEarthMap.svg viewBox (1400x1000)
   // and its map-content translate(0, 50) offset.
   'the-shire':    [7.14,  25.95],
   'bree':         [17.86, 25.95],
@@ -1619,13 +1619,7 @@ function renderMap() {
 
     // Fortification indicator
     if (regionState?.fortified) {
-      ctx.beginPath();
-      ctx.arc(x, y, radius + 4, 0, Math.PI*2);
-      ctx.strokeStyle = 'rgba(201,168,76,0.6)';
-      ctx.lineWidth   = 1;
-      ctx.setLineDash([3, 3]);
-      ctx.stroke();
-      ctx.setLineDash([]);
+      drawFortifyMarker(ctx, x, y, radius, regionState.fortifyTurns);
     }
 
     drawRegionLabel(ctx, formatRegionName(id), x, y, id);
@@ -2183,6 +2177,40 @@ function drawLegendLine(ctx, x, y, dashed, label, color, width) {
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
   ctx.fillText(label, x + 54, y + 1);
+}
+
+function drawFortifyMarker(ctx, x, y, radius, turns) {
+  ctx.save();
+
+  ctx.beginPath();
+  ctx.arc(x, y, radius + 6, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(201,168,76,0.95)';
+  ctx.lineWidth = 3;
+  ctx.setLineDash([5, 3]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  const bx = x;
+  const by = y - radius - 18;
+  ctx.beginPath();
+  ctx.moveTo(bx, by - 13);
+  ctx.lineTo(bx + 14, by - 7);
+  ctx.lineTo(bx + 11, by + 10);
+  ctx.quadraticCurveTo(bx, by + 18, bx - 11, by + 10);
+  ctx.lineTo(bx - 14, by - 7);
+  ctx.closePath();
+  ctx.fillStyle = '#fff8dc';
+  ctx.fill();
+  ctx.strokeStyle = '#c9a84c';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.fillStyle = '#7a5c12';
+  ctx.font = 'bold 9px Segoe UI, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(turns ? `+${turns}` : '+', bx, by + 1);
+  ctx.restore();
 }
 
 function drawLegendBlocked(ctx, x, y, label) {

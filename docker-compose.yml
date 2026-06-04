@@ -205,5 +205,5 @@ services:
       - "3000:80"
     volumes:
       - ./index.html:/usr/share/nginx/html/index.html:ro
-      - ./MiddleEarthMap.svg:/usr/share/nginx/html/MiddleEarthMap.svg:ro
+      - ./docs/MiddleEarthMap.svg:/usr/share/nginx/html/MiddleEarthMap.svg:ro
     restart: unless-stopped

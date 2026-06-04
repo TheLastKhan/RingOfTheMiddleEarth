@@ -194,11 +194,11 @@ docker compose down -v
 
 ## Documentation
 
-- `CALISTIRMA_REHBERI.md`: how to run and test the project.
-- `SUNUM_REHBERI.md`: demo script and Q&A answers.
-- `SUNUM_REHBERI_EN.md`: detailed English in-person presentation guide.
-- `TEKNIK_AKIS_DIYAGRAMLARI.md`: Mermaid diagrams for architecture, orders, SSE, Kafka, and failover flows.
-- `TEKNOLOJI_EGITIM.md`: technology explanations.
-- `architecture-document.md`: architecture, tradeoffs, and rubric evidence.
-- `YENI_DOSYALAR_ANALIZI.md`: documentation/file map.
-- `sonnet.md`: archived learning notes summary.
+- `docs/CALISTIRMA_REHBERI.md`: how to run and test the project.
+- `docs/SUNUM_REHBERI.md`: demo script and Q&A answers.
+- `docs/SUNUM_REHBERI_EN.md`: detailed English in-person presentation guide.
+- `docs/TEKNIK_AKIS_DIYAGRAMLARI.md`: Mermaid diagrams for architecture, orders, SSE, Kafka, and failover flows.
+- `docs/TEKNOLOJI_EGITIM.md`: technology explanations.
+- `docs/architecture-document.md`: architecture, tradeoffs, and rubric evidence.
+- `docs/YENI_DOSYALAR_ANALIZI.md`: documentation/file map.
+- `docs/sonnet.md`: archived learning notes summary.
