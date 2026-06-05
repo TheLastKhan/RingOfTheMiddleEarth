@@ -575,6 +575,7 @@ func (tp *TurnProcessor) step8ResolveCombat(state *TurnState) []GameEvent {
 			attackers = darkUnits
 			defenders = lightUnits
 		}
+		attackerSide := attackers[0].Config.Side
 
 		// ResolveCombat is pure calculation; this step applies the returned
 		// strength/status changes back onto mutable runtime units.
@@ -610,7 +611,6 @@ func (tp *TurnProcessor) step8ResolveCombat(state *TurnState) []GameEvent {
 
 		// Update region control
 		if result.AttackerWon {
-			attackerSide := attackers[0].Config.Side
 			region.Controller = attackerSide
 			region.Fortified = false // Fortification destroyed on capture
 			events = append(events, makeEvent("game.events.region", regionID, map[string]interface{}{
@@ -638,13 +638,60 @@ func (tp *TurnProcessor) step8ResolveCombat(state *TurnState) []GameEvent {
 		}
 
 		events = append(events, makeEvent("game.events.region", regionID, map[string]interface{}{
-			"regionId":    regionID,
-			"attackerWon": result.AttackerWon,
-			"turn":        state.Turn,
+			"eventType":     "BATTLE_RESOLVED",
+			"regionId":      regionID,
+			"attackerSide":  attackerSide,
+			"defenderSide":  defenders[0].Config.Side,
+			"attackerWon":   result.AttackerWon,
+			"attackerPower": result.AttackerPower,
+			"defenderPower": result.DefenderPower,
+			"damage":        result.Damage,
+			"attackers":     combatUnitStatuses(state, attackers),
+			"defenders":     combatUnitStatuses(state, defenders),
+			"destroyed":     combatUnitsWithStatus(state, append(attackers, defenders...), "DESTROYED"),
+			"respawning":    combatUnitsWithStatus(state, append(attackers, defenders...), "RESPAWNING"),
+			"survivors":     combatActiveUnits(state, append(attackers, defenders...)),
+			"turn":          state.Turn,
 		}))
 	}
 
 	return events
+}
+
+func combatUnitStatuses(state *TurnState, units []CombatUnit) []map[string]interface{} {
+	statuses := make([]map[string]interface{}, 0, len(units))
+	for _, unit := range units {
+		runtime, ok := state.Units[unit.ID]
+		if !ok {
+			continue
+		}
+		statuses = append(statuses, map[string]interface{}{
+			"unitId":   unit.ID,
+			"strength": runtime.Strength,
+			"status":   runtime.Status,
+		})
+	}
+	return statuses
+}
+
+func combatUnitsWithStatus(state *TurnState, units []CombatUnit, status string) []string {
+	var ids []string
+	for _, unit := range units {
+		if runtime, ok := state.Units[unit.ID]; ok && runtime.Status == status {
+			ids = append(ids, unit.ID)
+		}
+	}
+	return ids
+}
+
+func combatActiveUnits(state *TurnState, units []CombatUnit) []string {
+	var ids []string
+	for _, unit := range units {
+		if runtime, ok := state.Units[unit.ID]; ok && runtime.Status == "ACTIVE" {
+			ids = append(ids, unit.ID)
+		}
+	}
+	return ids
 }
 
 func (tp *TurnProcessor) step9UpdatePathTimers(state *TurnState) []GameEvent {

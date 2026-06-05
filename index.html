@@ -1012,8 +1012,7 @@ function connectSSE() {
   State.sse.addEventListener('game.events.region', e => {
     const data = eventPayload(e);
     if (data.eventType === 'BATTLE_RESOLVED') {
-      logEvent('BattleResolved',
-        `${formatRegionName(data.regionId)}: ${data.attackerWon ? 'Attackers prevail' : 'Defenders hold'}`, '');
+      logEvent('BattleResolved', formatCombatLog(data), data.attackerWon ? 'movement' : 'detection');
     } else {
       logEvent('RegionEvent',
         `${formatRegionName(data.regionId)}: ${data.newController || 'updated'}`, '');
@@ -1023,6 +1022,20 @@ function connectSSE() {
 }
 
 // ══════════════════════════════════════════════════════════
+function formatCombatLog(data) {
+  const result = data.attackerWon ? `${data.attackerSide} wins` : `${data.defenderSide} holds`;
+  const destroyed = (data.destroyed || []).map(formatUnitName);
+  const respawning = (data.respawning || []).map(formatUnitName);
+  const survivors = (data.survivors || []).map(formatUnitName);
+  const losses = [
+    destroyed.length ? `destroyed: ${destroyed.join(', ')}` : '',
+    respawning.length ? `respawning: ${respawning.join(', ')}` : '',
+  ].filter(Boolean).join('; ');
+  const alive = survivors.length ? `survivors: ${survivors.join(', ')}` : 'no active survivors';
+  const damage = data.damage ? `damage ${data.damage}` : 'attackers repelled, each attacker -1';
+  return `${formatRegionName(data.regionId)}: ${result} (${data.attackerPower}-${data.defenderPower}, ${damage}). ${losses || alive}`;
+}
+
 // STATE FETCH
 // ══════════════════════════════════════════════════════════
 function logUnitEvent(data) {
@@ -1289,11 +1302,13 @@ function selectUnit(unitId) {
   State.selectedOrder = null;
   State.orderPayload  = {};
   State.routeTargetRegion = null;
+  State.selectedPathId = null;
 
   document.getElementById('selected-unit-name').textContent =
     formatUnitName(unitId);
 
   renderUnits();
+  renderMap();
   renderOrderButtons(unitId);
   document.getElementById('order-detail').textContent =
     'Choose an order type above.';
@@ -2034,12 +2049,22 @@ function drawUnitBadges(ctx, x, y, units) {
   }
 }
 
+function unitBadgeBounds(ctx, x, y, unit) {
+  const side = unitSide(unit.id);
+  const label = `${side === 'LIGHT' ? 'L' : 'S'} ${unitInitials(unit.id)}`;
+  ctx.save();
+  ctx.font = 'bold 10px Segoe UI, sans-serif';
+  const width = Math.max(44, ctx.measureText(label).width + 16);
+  ctx.restore();
+  return { x, y, width, height: 18 };
+}
+
 function drawUnitBadge(ctx, x, y, unit) {
   const side = unitSide(unit.id);
   const selected = State.selectedUnit?.id === unit.id;
   const label = `${side === 'LIGHT' ? 'L' : 'S'} ${unitInitials(unit.id)}`;
   ctx.font = 'bold 10px Segoe UI, sans-serif';
-  const width = Math.max(44, ctx.measureText(label).width + 16);
+  const { width } = unitBadgeBounds(ctx, x, y, unit);
 
   ctx.save();
   roundedRect(ctx, x, y, width, 18, 5);
@@ -2055,6 +2080,31 @@ function drawUnitBadge(ctx, x, y, unit) {
   ctx.textBaseline = 'middle';
   ctx.fillText(label, x + width / 2, y + 9);
   ctx.restore();
+}
+
+function findClickedUnit(mx, my) {
+  if (!canvas || !ctx) return null;
+  const W = canvas.width, H = canvas.height;
+  let hit = null;
+  Object.entries(REGION_POS).some(([id]) => {
+    const [x, y] = mapPoint(id, W, H);
+    const unitsHere = State.units
+      .filter(u => (u.currentRegion || u.region) === id)
+      .filter(u => (u.status || 'ACTIVE') !== 'DESTROYED')
+      .slice()
+      .sort((a, b) => unitSide(a.id).localeCompare(unitSide(b.id)) || unitInitials(a.id).localeCompare(unitInitials(b.id)));
+    const radius = 18;
+    const maxBadges = 4;
+    return unitsHere.slice(0, maxBadges).some((unit, idx) => {
+      const b = unitBadgeBounds(ctx, x + radius + 6, y - radius - 8 + idx * 22, unit);
+      if (mx >= b.x && mx <= b.x + b.width && my >= b.y && my <= b.y + b.height) {
+        hit = unit;
+        return true;
+      }
+      return false;
+    });
+  });
+  return hit;
 }
 
 function drawOverflowBadge(ctx, x, y, count) {
@@ -2364,8 +2414,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Canvas click — region seçimi
   document.getElementById('map-canvas')?.addEventListener('click', e => {
     const rect = canvas.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
+    const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const my = (e.clientY - rect.top) * (canvas.height / rect.height);
 
     if (selectedOrderUsesPathClick()) {
       const pathId = findClickedPath(mx, my);
@@ -2378,6 +2428,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // En yakın region'ı bul
+    const clickedUnit = findClickedUnit(mx, my);
+    if (clickedUnit) {
+      selectUnit(clickedUnit.id);
+      notify(`Selected: ${formatUnitName(clickedUnit.id)}`);
+      return;
+    }
+
     let closest = null, minDist = Infinity;
     Object.entries(REGION_POS).forEach(([id]) => {
       const [x, y] = mapPoint(id, canvas.width, canvas.height);
