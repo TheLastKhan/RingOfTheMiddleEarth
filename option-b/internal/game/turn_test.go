@@ -150,6 +150,38 @@ func TestCostTwoPathRequiresTwoTurnsToArrive(t *testing.T) {
 	}
 }
 
+func TestSauronAndIndestructibleShadowMovementRestrictions(t *testing.T) {
+	cfg := config.DefaultConfig()
+	graph := NewGameGraph(cfg)
+	processor := NewTurnProcessor(cfg, graph)
+
+	sauronState := InitTurnState(cfg, graph)
+	processor.ProcessTurn(sauronState, []Order{{
+		OrderType: "ASSIGN_ROUTE",
+		UnitID:    "sauron",
+		PathIDs:   []string{"mordor-to-mount-doom"},
+	}})
+	if sauronState.Units["sauron"].CurrentRegion != "mordor" {
+		t.Fatalf("Sauron moved to %s, want mordor", sauronState.Units["sauron"].CurrentRegion)
+	}
+	if len(sauronState.Units["sauron"].Route) != 0 {
+		t.Fatalf("Sauron route = %v, want none", sauronState.Units["sauron"].Route)
+	}
+
+	witchState := InitTurnState(cfg, graph)
+	processor.ProcessTurn(witchState, []Order{{
+		OrderType: "ASSIGN_ROUTE",
+		UnitID:    "witch-king",
+		PathIDs: []string{
+			"minas-morgul-to-cirith-ungol",
+			"cirith-ungol-to-mount-doom",
+		},
+	}})
+	if len(witchState.Units["witch-king"].Route) != 0 {
+		t.Fatalf("Witch-King Mount Doom route = %v, want none", witchState.Units["witch-king"].Route)
+	}
+}
+
 func TestExposedRingBearerWithShadowUnitWinsForShadow(t *testing.T) {
 	cfg := config.DefaultConfig()
 	graph := NewGameGraph(cfg)
@@ -162,6 +194,40 @@ func TestExposedRingBearerWithShadowUnitWinsForShadow(t *testing.T) {
 	events := processor.step13CheckWinConditions(state)
 	if countGameOverByWinner(events, "SHADOW") != 1 {
 		t.Fatalf("exposed intercepted Ring Bearer emitted events %v, want SHADOW game over", gameOverPayloads(events))
+	}
+}
+
+func TestSauronDoesNotInterceptOrFightRingBearer(t *testing.T) {
+	cfg := config.DefaultConfig()
+	graph := NewGameGraph(cfg)
+	processor := NewTurnProcessor(cfg, graph)
+
+	interceptState := InitTurnState(cfg, graph)
+	interceptState.Units["ring-bearer"].CurrentRegion = "mordor"
+	interceptState.Units["sauron"].CurrentRegion = "mordor"
+	interceptState.Exposed = true
+	if events := processor.step13CheckWinConditions(interceptState); countGameOverByWinner(events, "SHADOW") != 0 {
+		t.Fatalf("Sauron intercepted exposed Ring Bearer: %v", gameOverPayloads(events))
+	}
+
+	travelState := InitTurnState(cfg, graph)
+	travelState.Turn = cfg.HiddenUntilTurn + 1
+	travelState.Units["ring-bearer"].CurrentRegion = "cirith-ungol"
+	travelState.Units["sauron"].CurrentRegion = "mordor"
+	events := processor.ProcessTurn(travelState, []Order{{
+		OrderType: "ASSIGN_ROUTE",
+		UnitID:    "ring-bearer",
+		PathIDs:   []string{"cirith-ungol-to-mordor", "mordor-to-mount-doom"},
+	}})
+
+	if countGameOverByWinner(events, "SHADOW") != 0 {
+		t.Fatalf("Sauron caused Shadow game over while Frodo passed Mordor: %v", gameOverPayloads(events))
+	}
+	if travelState.Units["ring-bearer"].CurrentRegion != "mordor" {
+		t.Fatalf("Ring Bearer at %s, want mordor", travelState.Units["ring-bearer"].CurrentRegion)
+	}
+	if travelState.Units["ring-bearer"].Status != "ACTIVE" {
+		t.Fatalf("Ring Bearer status = %s, want ACTIVE", travelState.Units["ring-bearer"].Status)
 	}
 }
 

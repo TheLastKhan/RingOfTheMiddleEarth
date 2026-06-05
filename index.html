@@ -860,6 +860,7 @@ const FORTIFY_UNITS = new Set(['gondor-army']);
 const RING_BEARER_UNITS = new Set(['ring-bearer']);
 
 function fallbackAvailableOrders(unitId) {
+  if (unitId === 'sauron') return [];
   const orders = ['ASSIGN_ROUTE', 'REDIRECT_UNIT', 'ATTACK_REGION', 'BLOCK_PATH'];
   if ((SIDE_UNIT_ORDER.SHADOW || []).includes(unitId)) orders.push('SEARCH_PATH');
   if (MAIA_UNITS.has(unitId)) orders.push('MAIA_ABILITY');

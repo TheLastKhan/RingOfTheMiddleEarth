@@ -203,6 +203,9 @@ func (tp *TurnProcessor) step2ProcessRoutes(state *TurnState, orders []Order) []
 		if !ok || unit.Status != "ACTIVE" {
 			continue
 		}
+		if !tp.canUnitReceiveRoute(unit, order.PathIDs) {
+			continue
+		}
 		// Route assignment stores the path sequence; movement happens later in
 		// step 7 so all players' orders are applied in deterministic order.
 		unit.Route = order.PathIDs
@@ -213,6 +216,31 @@ func (tp *TurnProcessor) step2ProcessRoutes(state *TurnState, orders []Order) []
 		unit.TravelRemaining = 0
 	}
 	return events
+}
+
+func (tp *TurnProcessor) canUnitReceiveRoute(unit *UnitRuntime, pathIDs []string) bool {
+	if unit.ID == "sauron" {
+		return false
+	}
+	if unit.Config.Side == "SHADOW" && unit.Config.Indestructible {
+		for _, pathID := range pathIDs {
+			pathCfg, ok := tp.cfg.PathsByID[pathID]
+			if ok && (pathCfg.From == "mount-doom" || pathCfg.To == "mount-doom") {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func (tp *TurnProcessor) canUnitEnterRegion(unit *UnitRuntime, regionID string) bool {
+	if regionID == "" {
+		return true
+	}
+	if unit.ID == "sauron" {
+		return false
+	}
+	return !(unit.Config.Side == "SHADOW" && unit.Config.Indestructible && regionID == "mount-doom")
 }
 
 func (tp *TurnProcessor) step3ProcessBlocking(state *TurnState, orders []Order) []GameEvent {
@@ -273,6 +301,9 @@ func (tp *TurnProcessor) step4ProcessReinforcements(state *TurnState, orders []O
 			if !ok || unit.Status != "ACTIVE" {
 				continue
 			}
+			if !tp.canUnitReceiveRoute(unit, order.PathIDs) || !tp.canUnitEnterRegion(unit, order.TargetRegion) {
+				continue
+			}
 			if len(order.PathIDs) > 0 {
 				unit.Route = order.PathIDs
 				unit.RouteIdx = 0
@@ -300,6 +331,9 @@ func (tp *TurnProcessor) step4ProcessReinforcements(state *TurnState, orders []O
 			if !ok || unit.Status != "ACTIVE" || order.TargetRegion == "" {
 				continue
 			}
+			if !tp.canUnitEnterRegion(unit, order.TargetRegion) {
+				continue
+			}
 			for _, edge := range tp.graph.Neighbors(unit.CurrentRegion) {
 				if edge.To == order.TargetRegion {
 					oldRegion := unit.CurrentRegion
@@ -319,6 +353,9 @@ func (tp *TurnProcessor) step4ProcessReinforcements(state *TurnState, orders []O
 		if order.OrderType == "DEPLOY_NAZGUL" {
 			unit, ok := state.Units[order.UnitID]
 			if !ok || unit.Status != "ACTIVE" || unit.Config.Side != "SHADOW" || order.TargetRegion == "" {
+				continue
+			}
+			if !tp.canUnitEnterRegion(unit, order.TargetRegion) {
 				continue
 			}
 			for _, edge := range tp.graph.Neighbors(unit.CurrentRegion) {
@@ -551,6 +588,9 @@ func (tp *TurnProcessor) step8ResolveCombat(state *TurnState) []GameEvent {
 		// Separate sides
 		var lightUnits, darkUnits []CombatUnit
 		for _, u := range units {
+			if !participatesInCombat(u) {
+				continue
+			}
 			cu := CombatUnit{ID: u.ID, Strength: u.Strength, Config: u.Config}
 			if u.Config.Side == "FREE_PEOPLES" {
 				lightUnits = append(lightUnits, cu)
@@ -821,10 +861,10 @@ func (tp *TurnProcessor) step13CheckWinConditions(state *TurnState) []GameEvent 
 				events = append(events, markGameOver(state, "FREE_PEOPLES", "Ring destroyed at Mount Doom"))
 				return events
 			}
-			// Interception win: the Ring Bearer was exposed this turn and is in a
-			// region occupied by an active Shadow unit. Combat destruction is
-			// handled by the separate Ring Bearer DESTROYED check below.
-			if state.Exposed && hasActiveShadowUnit(state, unit.CurrentRegion) {
+			// Interception win follows the spec: an exposed Ring Bearer must be
+			// in the same region as an active Nazgul. Passive Sauron does not
+			// intercept; his Eye only extends Nazgul detection range.
+			if state.Exposed && hasActiveNazgulUnit(state, unit.CurrentRegion) {
 				events = append(events, markGameOver(state, "SHADOW", "Ring Bearer exposed and intercepted"))
 				return events
 			}
@@ -977,6 +1017,25 @@ func hasActiveShadowUnit(state *TurnState, regionID string) bool {
 		}
 	}
 	return false
+}
+
+func hasActiveNazgulUnit(state *TurnState, regionID string) bool {
+	for _, unit := range state.Units {
+		if unit.Status == "ACTIVE" && unit.CurrentRegion == regionID && unit.Config.Class == "Nazgul" {
+			return true
+		}
+	}
+	return false
+}
+
+func participatesInCombat(unit *UnitRuntime) bool {
+	if unit.Config.Class == "RingBearer" {
+		return false
+	}
+	if unit.ID == "sauron" {
+		return false
+	}
+	return true
 }
 
 // InitTurnState creates the initial turn state from configuration.

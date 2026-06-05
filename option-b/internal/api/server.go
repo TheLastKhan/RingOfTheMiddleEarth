@@ -355,6 +355,15 @@ func (s *Server) handleAvailableOrders(w http.ResponseWriter, r *http.Request) {
 
 	available := []string{}
 
+	if unitID == "sauron" {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"unitId":          unitID,
+			"availableOrders": available,
+		})
+		return
+	}
+
 	// All units can assign routes and redirect
 	available = append(available, "ASSIGN_ROUTE", "REDIRECT_UNIT")
 

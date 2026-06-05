@@ -48,6 +48,7 @@ const (
 	ErrDuplicateUnitOrder = "DUPLICATE_UNIT_ORDER"
 	ErrMaiaDisabled       = "MAIA_DISABLED"
 	ErrDestroyCondition   = "DESTROY_CONDITION_NOT_MET"
+	ErrUnitCannotAct      = "UNIT_CANNOT_ACT"
 )
 
 // ═══════════════════════════════════════════════════════
@@ -91,6 +92,10 @@ func (v *Validator) Validate(order Order) ValidationResult {
 
 	// Rule 2: Unit belongs to submitting player's side
 	if result := v.rule2UnitOwnership(order); !result.Valid {
+		return result
+	}
+
+	if result := v.ruleUnitRestrictions(order); !result.Valid {
 		return result
 	}
 
@@ -172,6 +177,50 @@ func (v *Validator) rule2UnitOwnership(order Order) ValidationResult {
 	}
 
 	return ValidationResult{Valid: true}
+}
+
+func (v *Validator) ruleUnitRestrictions(order Order) ValidationResult {
+	unitCfg, ok := v.cfg.UnitsByID[order.UnitID]
+	if !ok {
+		return ValidationResult{Valid: true}
+	}
+
+	if order.UnitID == "sauron" {
+		return ValidationResult{
+			ErrorCode: ErrUnitCannotAct,
+			ErrorMsg:  "Sauron is passive and never receives orders",
+		}
+	}
+
+	if unitCfg.Side == "SHADOW" && unitCfg.Indestructible && v.orderWouldEnterRegion(order, "mount-doom") {
+		return ValidationResult{
+			ErrorCode: ErrInvalidTarget,
+			ErrorMsg:  "indestructible Shadow units cannot enter Mount Doom",
+		}
+	}
+
+	return ValidationResult{Valid: true}
+}
+
+func (v *Validator) orderWouldEnterRegion(order Order, targetRegion string) bool {
+	if order.TargetRegion == targetRegion {
+		return true
+	}
+	if order.OrderType != "ASSIGN_ROUTE" && order.OrderType != "REDIRECT_UNIT" {
+		return false
+	}
+
+	pathIDs := order.PathIDs
+	if len(order.NewPathIDs) > 0 {
+		pathIDs = order.NewPathIDs
+	}
+	for _, pathID := range pathIDs {
+		pathCfg, ok := v.cfg.PathsByID[pathID]
+		if ok && (pathCfg.From == targetRegion || pathCfg.To == targetRegion) {
+			return true
+		}
+	}
+	return false
 }
 
 func (v *Validator) rule3PathBlocked(order Order) ValidationResult {
