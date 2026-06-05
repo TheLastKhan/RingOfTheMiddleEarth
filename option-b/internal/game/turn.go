@@ -36,15 +36,19 @@ type TurnState struct {
 
 // UnitRuntime is the mutable runtime state of a unit during turn processing.
 type UnitRuntime struct {
-	ID            string   `json:"id"`
-	CurrentRegion string   `json:"currentRegion"`
-	Strength      int      `json:"strength"`
-	Status        string   `json:"status"` // ACTIVE | DESTROYED | RESPAWNING
-	RespawnTimer  int      `json:"respawnTurns"`
-	Cooldown      int      `json:"cooldown"`
-	Route         []string `json:"route,omitempty"`
-	RouteIdx      int      `json:"routeIdx"`
-	Config        config.UnitConfig
+	ID              string   `json:"id"`
+	CurrentRegion   string   `json:"currentRegion"`
+	Strength        int      `json:"strength"`
+	Status          string   `json:"status"` // ACTIVE | DESTROYED | RESPAWNING
+	RespawnTimer    int      `json:"respawnTurns"`
+	Cooldown        int      `json:"cooldown"`
+	Route           []string `json:"route,omitempty"`
+	RouteIdx        int      `json:"routeIdx"`
+	TravelPathID    string   `json:"travelPathId,omitempty"`
+	TravelFrom      string   `json:"travelFrom,omitempty"`
+	TravelTo        string   `json:"travelTo,omitempty"`
+	TravelRemaining int      `json:"travelRemaining,omitempty"`
+	Config          config.UnitConfig
 }
 
 // RegionRuntime is the mutable runtime state of a region.
@@ -203,6 +207,10 @@ func (tp *TurnProcessor) step2ProcessRoutes(state *TurnState, orders []Order) []
 		// step 7 so all players' orders are applied in deterministic order.
 		unit.Route = order.PathIDs
 		unit.RouteIdx = 0
+		unit.TravelPathID = ""
+		unit.TravelFrom = ""
+		unit.TravelTo = ""
+		unit.TravelRemaining = 0
 	}
 	return events
 }
@@ -428,57 +436,100 @@ func (tp *TurnProcessor) step7AutoAdvanceUnits(state *TurnState) []GameEvent {
 		if unit.Status != "ACTIVE" || len(unit.Route) == 0 {
 			continue
 		}
+
+		if unit.TravelPathID != "" {
+			path, ok := state.Paths[unit.TravelPathID]
+			if !ok || path.Status == "BLOCKED" {
+				continue
+			}
+			unit.TravelRemaining--
+			if unit.TravelRemaining > 0 {
+				continue
+			}
+
+			events = append(events, tp.completeUnitMove(state, unit, unit.TravelPathID, unit.TravelFrom, unit.TravelTo)...)
+			unit.TravelPathID = ""
+			unit.TravelFrom = ""
+			unit.TravelTo = ""
+			unit.TravelRemaining = 0
+			unit.RouteIdx++
+			continue
+		}
+
 		if unit.RouteIdx >= len(unit.Route) {
 			continue
 		}
 
-		// Get next path in route
 		nextPathID := unit.Route[unit.RouteIdx]
 		path, ok := state.Paths[nextPathID]
 		if !ok {
 			continue
 		}
 
-		// Check if path is blocked
 		if path.Status == "BLOCKED" {
 			continue // Can't advance through blocked path
 		}
 
-		// Get destination
 		pathCfg := tp.cfg.PathsByID[nextPathID]
 		destination := pathCfg.To
 		if unit.CurrentRegion == pathCfg.To {
 			destination = pathCfg.From
 		}
 
-		oldRegion := unit.CurrentRegion
-		unit.CurrentRegion = destination
-		unit.RouteIdx++
-
-		events = append(events, makeEvent("game.events.unit", unit.ID, map[string]interface{}{
-			"unitId": unit.ID,
-			"from":   oldRegion,
-			"to":     destination,
-			"turn":   state.Turn,
-		}))
-
-		// Ring Bearer movement produces a Light-only position event. If the path
-		// is under surveillance after the hidden period, the same movement also
-		// exposes the Ring Bearer for this turn.
-		if unit.Config.Class == "RingBearer" {
-			state.LightView.RingBearerRegion = destination
-			events = append(events, makeEvent("game.ring.position", "", map[string]interface{}{
-				"trueRegion": destination,
-				"turn":       state.Turn,
+		cost := pathCfg.Cost
+		if cost < 1 {
+			cost = 1
+		}
+		if cost > 1 {
+			unit.TravelPathID = nextPathID
+			unit.TravelFrom = unit.CurrentRegion
+			unit.TravelTo = destination
+			unit.TravelRemaining = cost - 1
+			events = append(events, makeEvent("game.events.unit", unit.ID, map[string]interface{}{
+				"unitId":          unit.ID,
+				"from":            unit.TravelFrom,
+				"to":              unit.TravelTo,
+				"pathId":          nextPathID,
+				"travelRemaining": unit.TravelRemaining,
+				"type":            "TRAVEL_STARTED",
+				"turn":            state.Turn,
 			}))
-			if path.SurveillanceLevel >= 1 && state.Turn > tp.cfg.HiddenUntilTurn {
-				state.Exposed = true
-				events = append(events, makeEvent("game.ring.detection", "", map[string]interface{}{
-					"pathId": nextPathID,
-					"turn":   state.Turn,
-					"type":   "RING_BEARER_SPOTTED",
-				}))
-			}
+			continue
+		}
+
+		events = append(events, tp.completeUnitMove(state, unit, nextPathID, unit.CurrentRegion, destination)...)
+		unit.RouteIdx++
+	}
+
+	return events
+}
+
+func (tp *TurnProcessor) completeUnitMove(state *TurnState, unit *UnitRuntime, pathID, oldRegion, destination string) []GameEvent {
+	var events []GameEvent
+	path := state.Paths[pathID]
+
+	unit.CurrentRegion = destination
+	events = append(events, makeEvent("game.events.unit", unit.ID, map[string]interface{}{
+		"unitId": unit.ID,
+		"from":   oldRegion,
+		"to":     destination,
+		"pathId": pathID,
+		"turn":   state.Turn,
+	}))
+
+	if unit.Config.Class == "RingBearer" {
+		state.LightView.RingBearerRegion = destination
+		events = append(events, makeEvent("game.ring.position", "", map[string]interface{}{
+			"trueRegion": destination,
+			"turn":       state.Turn,
+		}))
+		if path != nil && path.SurveillanceLevel >= 1 && state.Turn > tp.cfg.HiddenUntilTurn {
+			state.Exposed = true
+			events = append(events, makeEvent("game.ring.detection", "", map[string]interface{}{
+				"pathId": pathID,
+				"turn":   state.Turn,
+				"type":   "RING_BEARER_SPOTTED",
+			}))
 		}
 	}
 

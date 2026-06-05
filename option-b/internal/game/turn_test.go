@@ -119,6 +119,37 @@ func TestRingBearerSpottedBySurveillanceAfterHiddenTurns(t *testing.T) {
 	}
 }
 
+func TestCostTwoPathRequiresTwoTurnsToArrive(t *testing.T) {
+	cfg := config.DefaultConfig()
+	graph := NewGameGraph(cfg)
+	processor := NewTurnProcessor(cfg, graph)
+	state := InitTurnState(cfg, graph)
+	state.Units["ring-bearer"].CurrentRegion = "bree"
+
+	processor.ProcessTurn(state, []Order{{
+		OrderType: "ASSIGN_ROUTE",
+		UnitID:    "ring-bearer",
+		PathIDs:   []string{"bree-to-rivendell"},
+	}})
+	unit := state.Units["ring-bearer"]
+	if unit.CurrentRegion != "bree" {
+		t.Fatalf("after first turn on cost=2 path, Ring Bearer at %s, want bree", unit.CurrentRegion)
+	}
+	if unit.TravelPathID != "bree-to-rivendell" || unit.TravelRemaining != 1 || unit.RouteIdx != 0 {
+		t.Fatalf("travel state = path %q remaining %d routeIdx %d, want path bree-to-rivendell remaining 1 routeIdx 0",
+			unit.TravelPathID, unit.TravelRemaining, unit.RouteIdx)
+	}
+
+	processor.ProcessTurn(state, nil)
+	if unit.CurrentRegion != "rivendell" {
+		t.Fatalf("after second turn on cost=2 path, Ring Bearer at %s, want rivendell", unit.CurrentRegion)
+	}
+	if unit.TravelPathID != "" || unit.TravelRemaining != 0 || unit.RouteIdx != 1 {
+		t.Fatalf("completed travel state = path %q remaining %d routeIdx %d, want cleared routeIdx 1",
+			unit.TravelPathID, unit.TravelRemaining, unit.RouteIdx)
+	}
+}
+
 func TestExposedRingBearerWithShadowUnitWinsForShadow(t *testing.T) {
 	cfg := config.DefaultConfig()
 	graph := NewGameGraph(cfg)

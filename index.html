@@ -1029,6 +1029,14 @@ function logUnitEvent(data) {
   const unitName = formatUnitName(data.unitId);
   const eventType = data.eventType || data.event || (data.from && data.to ? 'MOVED' : 'UnitEvent');
 
+  if (data.type === 'TRAVEL_STARTED') {
+    const remaining = data.travelRemaining || 1;
+    logEvent('UnitTravelling',
+      `${unitName} travelling from ${formatRegionName(data.from)} to ${formatRegionName(data.to)} (${remaining} turn left)`,
+      'movement');
+    return;
+  }
+
   if (data.from && data.to) {
     logEvent('UnitMoved',
       `${unitName} moved from ${formatRegionName(data.from)} to ${formatRegionName(data.to)}`, 'movement');
@@ -1143,6 +1151,12 @@ async function advanceTurn() {
   const btn = document.getElementById('advance-turn-btn');
   if (btn) btn.disabled = true;
   try {
+    if (State.selectedUnit && State.selectedOrder) {
+      notify('Submitting selected order before ending turn...');
+      const submitted = await submitOrder();
+      if (!submitted) return;
+    }
+
     const res = await fetch(`${State.serverURL}/game/advance-turn`, {method: 'POST'});
     if (!res.ok) {
       notify('Could not advance turn', 'error');
@@ -1414,7 +1428,7 @@ function selectOrder(orderType) {
 }
 
 async function submitOrder() {
-  if (!State.selectedUnit || !State.selectedOrder) return;
+  if (!State.selectedUnit || !State.selectedOrder) return false;
 
   await fetchState();
   refreshSelectedUnitFromState();
@@ -1424,7 +1438,7 @@ async function submitOrder() {
     const pathIds = shortestRoutePathIds(currentRegion, State.routeTargetRegion);
     if (pathIds.length === 0) {
       notify('No route found from current unit position', 'error');
-      return;
+      return false;
     }
     State.orderPayload.pathIds = pathIds;
     const input = document.getElementById('path-ids-input');
@@ -1433,11 +1447,11 @@ async function submitOrder() {
 
   if ((State.selectedOrder === 'BLOCK_PATH' || State.selectedOrder === 'SEARCH_PATH') && !State.orderPayload.pathId) {
     notify('Click a path on the map first', 'error');
-    return;
+    return false;
   }
   if (State.selectedOrder === 'MAIA_ABILITY' && !State.orderPayload.targetPathId) {
     notify('Click a target path on the map first', 'error');
-    return;
+    return false;
   }
 
   const body = {
@@ -1465,15 +1479,18 @@ async function submitOrder() {
       State.selectedPathId = null;
       document.getElementById('submit-order-btn').disabled = true;
       renderMap();
+      return true;
     } else {
       const err = await res.json();
       notify(err.message || 'Order rejected', 'error');
       if (err.code === 'WRONG_TURN' || /current turn/i.test(err.message || '')) {
         fetchState();
       }
+      return false;
     }
   } catch(e) {
     notify('Server unreachable', 'error');
+    return false;
   }
 }
 

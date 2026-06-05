@@ -31,14 +31,18 @@ type WorldStateCache struct {
 
 // UnitSnapshot is the current state of a unit.
 type UnitSnapshot struct {
-	ID            string   `json:"id"`
-	CurrentRegion string   `json:"currentRegion"`
-	Strength      int      `json:"strength"`
-	Status        string   `json:"status"` // ACTIVE | DESTROYED | RESPAWNING
-	RespawnTurns  int      `json:"respawnTurns"`
-	Cooldown      int      `json:"cooldown"`
-	Route         []string `json:"route,omitempty"`
-	RouteIdx      int      `json:"routeIdx"`
+	ID              string   `json:"id"`
+	CurrentRegion   string   `json:"currentRegion"`
+	Strength        int      `json:"strength"`
+	Status          string   `json:"status"` // ACTIVE | DESTROYED | RESPAWNING
+	RespawnTurns    int      `json:"respawnTurns"`
+	Cooldown        int      `json:"cooldown"`
+	Route           []string `json:"route,omitempty"`
+	RouteIdx        int      `json:"routeIdx"`
+	TravelPathID    string   `json:"travelPathId,omitempty"`
+	TravelFrom      string   `json:"travelFrom,omitempty"`
+	TravelTo        string   `json:"travelTo,omitempty"`
+	TravelRemaining int      `json:"travelRemaining,omitempty"`
 }
 
 // RegionSnapshot is the current state of a region.
@@ -264,6 +268,10 @@ func (c *WorldStateCache) GetDarkState() []byte {
 		cfg, ok := c.UnitConfigs[snap.Units[i].ID]
 		if ok && cfg.Class == "RingBearer" {
 			snap.Units[i].CurrentRegion = "" // ALWAYS EMPTY
+			snap.Units[i].TravelPathID = ""
+			snap.Units[i].TravelFrom = ""
+			snap.Units[i].TravelTo = ""
+			snap.Units[i].TravelRemaining = 0
 		}
 	}
 
