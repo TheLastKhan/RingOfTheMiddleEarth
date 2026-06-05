@@ -56,6 +56,24 @@ func sendEvent(ch chan Event, event Event) {
 	}
 }
 
+func drainEvents(ch chan Event) {
+	for {
+		select {
+		case <-ch:
+		default:
+			return
+		}
+	}
+}
+
+// DrainSSE clears transient browser events from the side-specific queues.
+// It is used when a new game starts so a fresh UI session does not receive
+// buffered events from the previous game.
+func (r *EventRouter) DrainSSE() {
+	drainEvents(r.LightSSECh)
+	drainEvents(r.DarkSSECh)
+}
+
 // Route processes an incoming Kafka event and routes it to the
 // appropriate channels. This is THE SINGLE enforcement point
 // for information asymmetry.

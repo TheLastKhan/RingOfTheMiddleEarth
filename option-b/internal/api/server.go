@@ -33,8 +33,9 @@ type Server struct {
 	port      string
 
 	// SSE connections
-	sseClients   map[string]chan router.Event // playerID → channel
-	sseClientsMu sync.RWMutex
+	lightSSEClients map[chan router.Event]struct{}
+	darkSSEClients  map[chan router.Event]struct{}
+	sseClientsMu    sync.RWMutex
 
 	// Order channel — for sending to Kafka
 	OrderCh   chan validation.Order
@@ -45,19 +46,24 @@ type Server struct {
 
 // NewServer creates a new API server.
 func NewServer(cfg *config.GameConfig, c *cache.WorldStateCache, r *router.EventRouter, g *game.GameGraph, port string) *Server {
-	return &Server{
-		cfg:        cfg,
-		cache:      c,
-		router:     r,
-		graph:      g,
-		validator:  validation.NewValidator(cfg, c),
-		port:       port,
-		sseClients: make(map[string]chan router.Event),
-		OrderCh:    make(chan validation.Order, 100),
-		StartCh:    make(chan struct{}, 1),
-		ResetCh:    make(chan chan struct{}, 1),
-		AdvanceCh:  make(chan chan struct{}, 1),
+	s := &Server{
+		cfg:             cfg,
+		cache:           c,
+		router:          r,
+		graph:           g,
+		validator:       validation.NewValidator(cfg, c),
+		port:            port,
+		lightSSEClients: make(map[chan router.Event]struct{}),
+		darkSSEClients:  make(map[chan router.Event]struct{}),
+		OrderCh:         make(chan validation.Order, 100),
+		StartCh:         make(chan struct{}, 1),
+		ResetCh:         make(chan chan struct{}, 1),
+		AdvanceCh:       make(chan chan struct{}, 1),
 	}
+
+	go s.fanOutSSE(false, r.LightSSECh)
+	go s.fanOutSSE(true, r.DarkSSECh)
+	return s
 }
 
 func (s *Server) signalGameStarted() {
@@ -100,6 +106,49 @@ func (s *Server) signalAdvanceTurn() {
 // ResetTurn clears per-turn validation state.
 func (s *Server) ResetTurn() {
 	s.validator.ResetTurn()
+}
+
+func (s *Server) fanOutSSE(isDarkSide bool, source <-chan router.Event) {
+	for event := range source {
+		s.sseClientsMu.RLock()
+		if isDarkSide {
+			for ch := range s.darkSSEClients {
+				select {
+				case ch <- event:
+				default:
+				}
+			}
+		} else {
+			for ch := range s.lightSSEClients {
+				select {
+				case ch <- event:
+				default:
+				}
+			}
+		}
+		s.sseClientsMu.RUnlock()
+	}
+}
+
+func (s *Server) registerSSEClient(isDarkSide bool, ch chan router.Event) func() {
+	s.sseClientsMu.Lock()
+	if isDarkSide {
+		s.darkSSEClients[ch] = struct{}{}
+	} else {
+		s.lightSSEClients[ch] = struct{}{}
+	}
+	s.sseClientsMu.Unlock()
+
+	return func() {
+		s.sseClientsMu.Lock()
+		if isDarkSide {
+			delete(s.darkSSEClients, ch)
+		} else {
+			delete(s.lightSSEClients, ch)
+		}
+		s.sseClientsMu.Unlock()
+		close(ch)
+	}
 }
 
 // Start begins the HTTP server.
@@ -165,6 +214,7 @@ func (s *Server) handleGameStart(w http.ResponseWriter, r *http.Request) {
 	log.Printf("🎮 Game started: mode=%s, light=%s, dark=%s", req.Mode, req.LightPlayerID, req.DarkPlayerID)
 
 	s.signalGameReset()
+	s.router.DrainSSE()
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
 		"status":  "started",
@@ -367,24 +417,16 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create channel for this client
-	clientCh := make(chan router.Event, 50)
-	s.sseClientsMu.Lock()
-	s.sseClients[playerID] = clientCh
-	s.sseClientsMu.Unlock()
-
-	defer func() {
-		s.sseClientsMu.Lock()
-		delete(s.sseClients, playerID)
-		s.sseClientsMu.Unlock()
-		close(clientCh)
-	}()
-
-	log.Printf("📡 SSE connected: %s", playerID)
-
 	// This is the live-event side of information hiding: Light and Dark read
 	// from different router channels.
 	isDarkSide := s.isRequestDarkSide(r)
+
+	// Create channel for this client
+	clientCh := make(chan router.Event, 50)
+	unregister := s.registerSSEClient(isDarkSide, clientCh)
+	defer unregister()
+
+	log.Printf("📡 SSE connected: %s", playerID)
 
 	ctx := r.Context()
 	heartbeat := time.NewTicker(25 * time.Second)
@@ -404,12 +446,7 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, ": heartbeat\n\n")
 			flusher.Flush()
 
-		case event := <-func() chan router.Event {
-			if isDarkSide {
-				return s.router.DarkSSECh
-			}
-			return s.router.LightSSECh
-		}():
+		case event := <-clientCh:
 			data, _ := json.Marshal(map[string]interface{}{
 				"topic": event.Topic,
 				"data":  json.RawMessage(event.Data),

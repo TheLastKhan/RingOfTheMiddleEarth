@@ -764,6 +764,7 @@ const State = {
   countdownId:  null,
   lastSeenTurn: null,
   processingPollId: null,
+  stateSyncId: null,
 };
 
 // ══════════════════════════════════════════════════════════
@@ -907,6 +908,56 @@ function checkLoginReady() {
   document.getElementById('join-btn').disabled = !(name && chosenSide);
 }
 
+function resetClientSessionUi() {
+  if (State.sse) {
+    State.sse.close();
+    State.sse = null;
+  }
+  State.selectedUnit = null;
+  State.selectedOrder = null;
+  State.orderPayload = {};
+  State.routeTargetRegion = null;
+  State.selectedPathId = null;
+  State.lastSeenTurn = null;
+  State.nextTurnAt = null;
+  stopProcessingPoll();
+  stopStateSync();
+  if (State.countdownId) {
+    clearInterval(State.countdownId);
+    State.countdownId = null;
+  }
+
+  const selectedName = document.getElementById('selected-unit-name');
+  const orderButtons = document.getElementById('order-buttons');
+  const orderDetail = document.getElementById('order-detail');
+  const submitBtn = document.getElementById('submit-order-btn');
+  const riskDisplay = document.getElementById('risk-display');
+  const eventLog = document.getElementById('event-log');
+  const countdown = document.getElementById('next-turn-countdown');
+
+  if (selectedName) selectedName.textContent = 'Select a unit first';
+  if (orderButtons) orderButtons.innerHTML = '';
+  if (orderDetail) orderDetail.textContent = 'Select a unit and choose an order type.';
+  if (submitBtn) submitBtn.disabled = true;
+  if (riskDisplay) riskDisplay.textContent = '';
+  if (eventLog) eventLog.innerHTML = '';
+  if (countdown) countdown.textContent = 'waiting';
+  hideGameOver();
+}
+
+function startStateSync() {
+  if (State.stateSyncId) return;
+  State.stateSyncId = setInterval(() => {
+    if (State.playerId && State.side && State.serverURL) fetchState();
+  }, 2000);
+}
+
+function stopStateSync() {
+  if (!State.stateSyncId) return;
+  clearInterval(State.stateSyncId);
+  State.stateSyncId = null;
+}
+
 async function joinGame() {
   const playerId  = document.getElementById('player-id-input').value.trim();
   const serverURL = document.getElementById('server-url').value.trim();
@@ -914,6 +965,7 @@ async function joinGame() {
   State.playerId  = playerId;
   State.side      = chosenSide;
   State.serverURL = serverURL;
+  resetClientSessionUi();
 
   // Oyunu başlat (veya mevcut oyuna katıl)
   try {
@@ -926,9 +978,6 @@ async function joinGame() {
         darkPlayerId:  chosenSide === 'SHADOW'       ? playerId : 'light-opponent',
       }),
     });
-    State.lastSeenTurn = null;
-    State.nextTurnAt = null;
-    stopProcessingPoll();
   } catch(e) {
     // Oyun zaten başlamış olabilir — devam et
   }
@@ -948,6 +997,7 @@ async function joinGame() {
 
   // İlk durum
   await fetchState();
+  startStateSync();
   initCanvas();
 }
 
@@ -962,12 +1012,14 @@ function connectSSE() {
     document.getElementById('conn-dot').className = 'connection-dot connected';
     document.getElementById('conn-status').textContent = 'Connected';
     document.getElementById('conn-status').style.color = '#4caf50';
+    fetchState();
   };
 
   State.sse.onerror = () => {
     document.getElementById('conn-dot').className = 'connection-dot';
     document.getElementById('conn-status').textContent = 'Reconnecting...';
     document.getElementById('conn-status').style.color = '#ff9800';
+    fetchState();
   };
 
   // Event handler'ları
@@ -1117,11 +1169,12 @@ function handleWorldState(data) {
     data.paths.forEach(p => State.paths[p.id] = p);
   }
 
-  if (data.winner || (data.type === 'GameOver')) {
+  if (data.gameOver || data.winner || data.type === 'GAME_OVER') {
     showGameOver(data.winner, data.cause);
     return;
   }
 
+  hideGameOver();
   renderUnits();
   renderMap();
 }
@@ -1216,6 +1269,7 @@ async function endGame() {
     State.lastSeenTurn = null;
     State.nextTurnAt = null;
     stopProcessingPoll();
+    stopStateSync();
 
     document.getElementById('selected-unit-name').textContent = 'Select a unit first';
     document.getElementById('order-buttons').innerHTML = '';
@@ -1228,6 +1282,7 @@ async function endGame() {
     logEvent('GameReset', 'Game ended and reset to Turn 1.', '');
     notify('Game reset to Turn 1');
     await fetchState();
+    startStateSync();
   } catch(e) {
     notify('Server unreachable', 'error');
   } finally {
@@ -2397,7 +2452,7 @@ function showGameOver(winner, cause) {
     title.textContent = '🔥 Darkness Prevails';
     title.style.color = '#c0392b';
   } else {
-    title.textContent = '⚖️ The Age Ends in Shadow';
+    title.textContent = '⚖️ The Age Ends in a Draw';
     title.style.color = '#c9a84c';
   }
 
@@ -2405,6 +2460,11 @@ function showGameOver(winner, cause) {
   overlay.classList.add('show');
 
   if (State.sse) State.sse.close();
+}
+
+function hideGameOver() {
+  const overlay = document.getElementById('gameover-overlay');
+  if (overlay) overlay.classList.remove('show');
 }
 
 // ══════════════════════════════════════════════════════════
